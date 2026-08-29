@@ -2,8 +2,20 @@ name: Docker Container Multi-Arch Publisher
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ 'v*' ]
+    branches:
+      - "main"
+      - "development"
+    tags:
+      - 'v*'
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
 permissions:
@@ -46,9 +58,10 @@ jobs:
             blanguedoc/dalibackup-oss
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/development' }}
+            type=raw,value=development,enable=${{ github.ref == 'refs/heads/development' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
 
       - name: 🚀 Build & Push to GHCR & Docker Hub
         uses: docker/build-push-action@v5
