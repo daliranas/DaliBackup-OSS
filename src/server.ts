@@ -40,26 +40,8 @@ initDatabase();
 
 // Middlewares
 app.use(helmet({ contentSecurityPolicy: false }));
-const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()) : null;
 app.use(cors({
-  origin: (origin, callback) => {
-    // Requêtes sans header Origin (CLI, Postman, PowerShell agent direct)
-    if (!origin) return callback(null, true);
-
-    try {
-      const parsed = new URL(origin);
-      const isLoopback = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]'].includes(parsed.hostname);
-      const isConfigured = allowedOrigins ? (allowedOrigins.includes(origin) || allowedOrigins.includes(parsed.hostname)) : false;
-
-      if (isLoopback || isConfigured) {
-        callback(null, true);
-      } else {
-        callback(new Error('Origine non autorisée par la politique CORS DaliBackup.'));
-      }
-    } catch {
-      callback(new Error('Origine invalide.'));
-    }
-  },
+  origin: true,
   credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
