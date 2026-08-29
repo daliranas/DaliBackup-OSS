@@ -90,16 +90,55 @@ async function runApiE2ETests() {
   assert.strictEqual(setupRes.body.success, true);
   console.log('   ✅ POST /api/auth/setup-complete : 200 OK (Compte Admin créé & Wizard finalisé)');
 
-  // Test 3: Authentification Admin Unique (POST /api/auth/login)
-  console.log('\n3. Test Authentification Admin & JWT (POST /api/auth/login)...');
+  // Test 3: Authentification Admin Unique & Tests de Connexion Multi-Origines
+  console.log('\n3. Tests Avancés de Connexion & Authentification (POST /api/auth/login)...');
+  
+  // 3.a Connexion réussie avec Header Origin LAN (192.168.x.x)
   const loginRes = await request(app)
     .post('/api/auth/login')
+    .set('Origin', 'http://192.168.1.150:3000')
     .send({ username: 'admin', password: 'AdminPassword123!' });
   
   assert.strictEqual(loginRes.status, 200);
   assert(loginRes.body.token, 'Le JWT admin doit être retourné');
   adminToken = loginRes.body.token;
-  console.log('   ✅ POST /api/auth/login : 200 OK (JWT session généré)');
+  console.log('   ✅ POST /api/auth/login [LAN Origin] : 200 OK (JWT session généré)');
+
+  // 3.b Test Rejet Mauvais Mot de Passe (Sécurité)
+  const badPassRes = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'admin', password: 'WrongPassword456!' });
+  assert.strictEqual(badPassRes.status, 401);
+  console.log('   ✅ POST /api/auth/login [Wrong Password] : 401 Rejeté avec succès');
+
+  // 3.c Test Rejet Utilisateur Inexistant
+  const badUserRes = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'non_existent_user', password: 'AnyPassword123!' });
+  assert.strictEqual(badUserRes.status, 401);
+  console.log('   ✅ POST /api/auth/login [Unknown User] : 401 Rejeté avec succès');
+
+  // 3.d Test Session Active & Profil (/api/auth/me)
+  const meRes = await request(app)
+    .get('/api/auth/me')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.strictEqual(meRes.status, 200);
+  assert.strictEqual(meRes.body.user.username, 'admin');
+  console.log('   ✅ GET /api/auth/me : 200 OK (Session validée)');
+
+  // 3.e Test Rejet Accès Non-Autorisé
+  const unauthorizedRes = await request(app)
+    .get('/api/auth/me')
+    .set('Authorization', 'Bearer invalid_fake_token_xyz');
+  assert.strictEqual(unauthorizedRes.status, 401);
+  console.log('   ✅ GET /api/auth/me [Fake Token] : 401 Rejeté avec succès');
+
+  // 3.f Test Rejet Agent Machine Token Invalide (403 Forbidden)
+  const badAgentRes = await request(app)
+    .get('/api/hypervisors/agent/tasks')
+    .set('Authorization', 'Bearer dalibkp_oss_forged_fake_token');
+  assert.strictEqual(badAgentRes.status, 403);
+  console.log('   ✅ GET /api/hypervisors/agent/tasks [Forged Agent Token] : 403 Rejeté avec succès');
 
   // Test 3: Création & Test Cible de Stockage NFS/Local (POST /api/storage-targets)
   console.log('\n3. Test Création & Diagnostic Stockage (POST /api/storage-targets)...');
