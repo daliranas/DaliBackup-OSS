@@ -1,0 +1,81 @@
+name: Release & Distribution Engine
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-publish-release:
+    name: Build & Package Release Assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 22.x LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🔨 Compile Production TypeScript (tsc)
+        run: npm run build
+
+      - name: 🧪 Execute Full Test Suite Verification
+        run: npm test
+
+      - name: 📦 Package Distribution Assets & Compute Checksums
+        run: |
+          mkdir -p release-assets
+          VERSION="${GITHUB_REF_NAME:-v1.0.0}"
+
+          # 1. Hyper-V Agent Zip Package
+          zip -j "release-assets/dalibackup-hyperv-agents-${VERSION}.zip" agents/hyperv/*.ps1 agents/hyperv/config.example.json agents/hyperv/README.md
+
+          # 2. Proxmox Hook Tarball
+          tar -czvf "release-assets/dalibackup-proxmox-hooks-${VERSION}.tar.gz" -C agents/proxmox .
+
+          # 3. Full Standalone Production Server Tarball
+          tar -czvf "release-assets/dalibackup-oss-server-${VERSION}.tar.gz" dist public agents package.json package-lock.json tsconfig.json docker-compose.yml Dockerfile .env.example LICENSE NOTICE README.md
+
+          # 4. Generate SHA-256 Checksums
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+
+      - name: 🚀 Publish GitHub Official Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/*
+          name: "DaliBackup-OSS ${{ github.ref_name }} — Sovereign Backup Engine"
+          body: |
+            ## 🛡️ DaliBackup-OSS Official Release ${{ github.ref_name }}
+            
+            ### 🌟 Points Clés & Nouveautés :
+            * **🚀 Hyper-V Native Agents** : Streaming continue à la volée (`DaliStreamCompressor`), VSS snapshots, décompression bit-à-bit et auto-boot PRA.
+            * **🐧 Proxmox VE Integration** : Support direct QEMU/KVM & LXC via API 2.0 et hook `vzdump`.
+            * **📬 Universal IMAP Engine** : Sauvegarde incrémentielle des boîtes e-mails avec UID tracking et export `.tar.gz`.
+            * **💾 Multi-Protocol Storage** : Cibles POSIX/NFS, SFTP (SSH key) et FTP/FTPS.
+            * **🔒 Zero-Trust Security** : SQLite embarqué (`DatabaseSync`), CryptoVault AES-256-GCM et tokens machines isolés.
+            
+            ---
+            
+            ### 📦 Téléchargements Directs :
+            * `dalibackup-hyperv-agents-${{ github.ref_name }}.zip` : Agents et scripts d'installation Windows Server.
+            * `dalibackup-proxmox-hooks-${{ github.ref_name }}.tar.gz` : Scripts d'intégration Proxmox VE.
+            * `dalibackup-oss-server-${{ github.ref_name }}.tar.gz` : Serveur complet pré-compilé prêt à l'emploi.
+            * `SHA256SUMS.txt` : Empreintes cryptographiques de contrôle d'intégrité.
+            
+            *Développé avec rigueur par **Bastien LANGUEDOC (Daliranas)** · [daliranas.fr](https://daliranas.fr)*
+          draft: false
+          prerelease: false

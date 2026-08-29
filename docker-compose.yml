@@ -1,0 +1,47 @@
+# ============================================================================
+# DaliBackup-OSS — Turnkey Docker Compose Deployment Stack
+# Developed by: Bastien LANGUEDOC (Daliranas) · https://daliranas.fr
+# ============================================================================
+
+version: '3.8'
+
+services:
+  dalibackup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/daliranas/dalibackup-oss:latest
+    container_name: dalibackup-oss
+    restart: always
+    ports:
+      - "3000:3000"   # HTTP Console & 308 HTTPS Redirection
+      - "3443:3443"   # HTTPS Console & Secure Agent Streaming API
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=3000
+      - SSL_PORT=3443
+      - SSL_ENABLED=true
+      - DATABASE_FILE=/app/data/dalibackup.db
+      - DEFAULT_LOCAL_STORAGE_PATH=/var/backups/dalibackup
+      - TZ=Europe/Paris
+    volumes:
+      # 1. Base SQLite, secrets chiffrés et certificats SSL auto-générés
+      - ./data:/app/data
+      # 2. Dossier local des sauvegardes (ou point de montage NFS / disque externe)
+      - ./backups:/var/backups/dalibackup
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  dalibackup-data:
+  dalibackup-backups:

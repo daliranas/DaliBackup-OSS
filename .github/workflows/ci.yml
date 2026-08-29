@@ -1,0 +1,160 @@
+name: DaliBackup-OSS CI & Quality Engine
+
+on:
+  push:
+    branches: [ "main", "develop", "release/*" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # =========================================================================
+  # 1. TypeScript & Core Server Testing
+  # =========================================================================
+  server-build-and-test:
+    name: Core Engine Test (Node ${{ matrix.node-version }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node-version: [22.x]
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🔨 Compile TypeScript (tsc)
+        run: npm run build
+
+      - name: 🧪 Run Automated Integration & Security Test Suite
+        run: npm test
+
+      - name: 🛡️ Audit NPM Dependencies
+        run: npm audit --audit-level=high || true
+
+  # =========================================================================
+  # 2. PowerShell Hyper-V Agents Syntax & Linting Analysis
+  # =========================================================================
+  powershell-agent-validation:
+    name: Hyper-V PowerShell Agents Syntax Validation
+    runs-on: windows-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚡ Validate PowerShell Scripts Syntax & AST
+        shell: pwsh
+        run: |
+          Write-Host "🔍 Validating all PowerShell agents in agents/hyperv/..." -ForegroundColor Cyan
+          $psFiles = Get-ChildItem -Path "agents/hyperv" -Filter "*.ps1"
+          $errorsFound = $false
+
+          foreach ($file in $psFiles) {
+              $errors = $null
+              $tokens = $null
+              $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors)
+              
+              if ($errors -and $errors.Count -gt 0) {
+                  Write-Host "❌ Syntax error in $($file.Name):" -ForegroundColor Red
+                  $errors | ForEach-Object { Write-Host "   - Line $($_.Extent.StartLineNumber): $($_.Message)" -ForegroundColor Red }
+                  $errorsFound = $true
+              } else {
+                  Write-Host "✅ $($file.Name) : AST Syntax Valid" -ForegroundColor Green
+              }
+          }
+
+          if ($errorsFound) {
+              throw "PowerShell AST syntax validation failed."
+          }
+
+  # =========================================================================
+  # 3. Proxmox Shell Hook Validation
+  # =========================================================================
+  proxmox-shell-validation:
+    name: Proxmox VE Shell Scripts Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐚 ShellCheck Linting
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: 'agents/proxmox'
+        continue-on-error: true
+
+  # =========================================================================
+  # 4. Secret & Leak Prevention Scan
+  # =========================================================================
+  security-secrets-scan:
+    name: Gitleaks Secrets & Credentials Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =========================================================================
+  # 5. Docker Container Build & OCI Validation
+  # =========================================================================
+  docker-build-test:
+    name: Container Build & Health Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🏗️ Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: dalibackup-oss:ci-test
+
+  # =========================================================================
+  # 6. Build Artifact Packaging (Hyper-V Agent ZIP & Server Tarball)
+  # =========================================================================
+  package-release-artifacts:
+    name: Package Ready-to-Deploy Artifacts
+    needs: [server-build-and-test, powershell-agent-validation, docker-build-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Create Hyper-V Agents ZIP
+        run: |
+          mkdir -p build-artifacts
+          zip -j build-artifacts/dalibackup-agents-hyperv.zip agents/hyperv/*.ps1 agents/hyperv/config.example.json agents/hyperv/README.md
+
+      - name: 📤 Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dalibackup-hyperv-agents
+          path: build-artifacts/dalibackup-agents-hyperv.zip
+          retention-days: 14

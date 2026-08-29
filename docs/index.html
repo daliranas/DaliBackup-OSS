@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DaliBackup-OSS — Documentation & Portail Technique</title>
+  <meta name="description" content="Documentation technique officielle et guide de déploiement de DaliBackup-OSS (Hyper-V, Proxmox VE, IMAP).">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              DEFAULT: '#10b981',
+              dark: '#059669',
+              accent: '#3b82f6'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #0b0f17; color: #cbd5e1; }
+    .code-border { border: 1px solid rgba(255, 255, 255, 0.08); }
+    .tab-active { color: #10b981; border-bottom: 2px solid #10b981; }
+  </style>
+</head>
+<body class="font-sans antialiased selection:bg-emerald-500 selection:text-black">
+
+  <!-- Top Navigation Bar -->
+  <nav class="sticky top-0 z-50 border-b border-neutral-800/80 bg-[#0b0f17]/90 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+      <div class="flex items-center space-x-6">
+        <a href="#" class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+            D
+          </div>
+          <span class="font-bold text-base text-white tracking-tight">DaliBackup<span class="text-xs text-neutral-400 font-mono font-normal ml-1">/ oss</span></span>
+        </a>
+        <div class="hidden md:flex items-center space-x-5 text-xs font-medium text-neutral-400">
+          <a href="#quickstart" class="hover:text-white transition">Déploiement</a>
+          <a href="#architecture" class="hover:text-white transition">Architecture</a>
+          <a href="#hypervisors" class="hover:text-white transition">Hyperviseurs</a>
+          <a href="#api" class="hover:text-white transition">API REST</a>
+          <a href="#guides" class="hover:text-white transition">Guides</a>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3 text-xs">
+        <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-neutral-800 text-neutral-300 border border-neutral-700">v1.0.0</span>
+        <a href="https://hub.docker.com/r/blanguedoc/dalibackup-oss" target="_blank" class="px-2.5 py-1 rounded bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white transition flex items-center space-x-1.5">
+          <i class="fa-brands fa-docker text-sm text-sky-400"></i>
+          <span>Docker Hub</span>
+        </a>
+        <a href="https://github.com/daliranas/DaliBackup-OSS" target="_blank" class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center space-x-1.5 shadow-sm">
+          <i class="fa-brands fa-github text-sm"></i>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Technical Header -->
+  <header class="border-b border-neutral-800/60 bg-[#0e131f]/50 py-12 sm:py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        
+        <div class="lg:col-span-7 space-y-4">
+          <div class="flex items-center space-x-2 text-xs font-mono text-emerald-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>Single-User · Zero-Dependency · Sovereign Core</span>
+          </div>
+          <h1 class="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+            Moteur de Sauvegarde & PRA pour Hyper-V, Proxmox VE et IMAP
+          </h1>
+          <p class="text-sm text-neutral-400 leading-relaxed max-w-2xl">
+            Control plane autonome écrit en TypeScript avec stockage SQLite embarqué (<code class="text-neutral-300 font-mono text-xs">node:sqlite</code>). Chiffrement AES-256-GCM au repos, streaming temps réel bit-à-bit et ordonnancement de rétention natif.
+          </p>
+          <div class="flex flex-wrap gap-2 pt-2 text-xs font-mono">
+            <span class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">RAM : &lt; 80 Mo</span>
+            <span class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">DB : SQLite (WAL)</span>
+            <span class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">Crypto : AES-256-GCM</span>
+            <span class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">Streaming : GZip Pipe</span>
+          </div>
+        </div>
+
+        <!-- Terminal Quick Start -->
+        <div class="lg:col-span-5">
+          <div class="rounded-lg bg-[#070a0f] border border-neutral-800 shadow-2xl overflow-hidden">
+            <div class="px-3.5 py-2.5 bg-neutral-900/80 border-b border-neutral-800 flex items-center justify-between text-xs">
+              <div class="flex items-center space-x-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-neutral-700"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-neutral-700"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-neutral-700"></span>
+                <span class="font-mono text-neutral-400 ml-2">Lancement Docker 1-Ligne</span>
+              </div>
+              <button onclick="copyDockerCmd()" id="copyBtn" class="text-neutral-400 hover:text-emerald-400 transition flex items-center space-x-1 font-mono text-[11px]">
+                <i class="fa-regular fa-copy"></i>
+                <span id="copyText">Copier</span>
+              </button>
+            </div>
+            <div class="p-3.5 font-mono text-xs text-neutral-300 overflow-x-auto leading-relaxed">
+              <span class="text-neutral-500"># Téléchargement et lancement immédiat</span><br/>
+              <span class="text-emerald-400">docker run</span> -d \<br/>
+              &nbsp;&nbsp;--name dalibackup-oss \<br/>
+              &nbsp;&nbsp;--restart always \<br/>
+              &nbsp;&nbsp;-p 3000:3000 -p 3443:3443 \<br/>
+              &nbsp;&nbsp;-v $(pwd)/data:/app/data \<br/>
+              &nbsp;&nbsp;-v $(pwd)/backups:/var/backups/dalibackup \<br/>
+              &nbsp;&nbsp;<span class="text-sky-300">blanguedoc/dalibackup-oss:latest</span>
+            </div>
+            <div class="px-3.5 py-2 bg-neutral-950 border-t border-neutral-800/80 text-[11px] font-mono text-neutral-400 flex items-center justify-between">
+              <span>Portail Web HTTPS :</span>
+              <a href="https://localhost:3443" target="_blank" class="text-emerald-400 hover:underline">https://localhost:3443</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+
+      <!-- Left Navigation / Table of Contents (3 cols) -->
+      <aside class="hidden lg:block lg:col-span-3 space-y-6 text-xs sticky top-20 self-start">
+        <div>
+          <div class="font-semibold text-white uppercase tracking-wider text-[11px] mb-2.5">Déploiement</div>
+          <ul class="space-y-1.5 border-l border-neutral-800 pl-3">
+            <li><a href="#quickstart" class="text-neutral-400 hover:text-emerald-400 transition">Docker & Docker Compose</a></li>
+            <li><a href="#binaires" class="text-neutral-400 hover:text-emerald-400 transition">Binaires & Agents Releases</a></li>
+            <li><a href="#env-vars" class="text-neutral-400 hover:text-emerald-400 transition">Variables d'environnement</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="font-semibold text-white uppercase tracking-wider text-[11px] mb-2.5">Architecture & Sécurité</div>
+          <ul class="space-y-1.5 border-l border-neutral-800 pl-3">
+            <li><a href="#architecture" class="text-neutral-400 hover:text-emerald-400 transition">Moteur SQLite & WAL</a></li>
+            <li><a href="#cryptovault" class="text-neutral-400 hover:text-emerald-400 transition">CryptoVault AES-256-GCM</a></li>
+            <li><a href="#streaming" class="text-neutral-400 hover:text-emerald-400 transition">Streaming Bit-à-Bit</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="font-semibold text-white uppercase tracking-wider text-[11px] mb-2.5">Hyperviseurs & Sources</div>
+          <ul class="space-y-1.5 border-l border-neutral-800 pl-3">
+            <li><a href="#hyperv" class="text-neutral-400 hover:text-emerald-400 transition">Microsoft Hyper-V (VSS)</a></li>
+            <li><a href="#proxmox" class="text-neutral-400 hover:text-emerald-400 transition">Proxmox VE (QEMU/LXC)</a></li>
+            <li><a href="#imap" class="text-neutral-400 hover:text-emerald-400 transition">Messagerie IMAP (.eml)</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="font-semibold text-white uppercase tracking-wider text-[11px] mb-2.5">Documentation Complète</div>
+          <ul class="space-y-1.5 border-l border-neutral-800 pl-3 font-mono">
+            <li><a href="https://github.com/daliranas/DaliBackup-OSS/blob/main/docs/01-architecture-overview.md" target="_blank" class="text-emerald-400 hover:underline">01-architecture.md</a></li>
+            <li><a href="https://github.com/daliranas/DaliBackup-OSS/blob/main/docs/02-quick-start-docker.md" target="_blank" class="text-emerald-400 hover:underline">02-docker.md</a></li>
+            <li><a href="https://github.com/daliranas/DaliBackup-OSS/blob/main/docs/03-hyperv-agent-deployment.md" target="_blank" class="text-emerald-400 hover:underline">03-hyperv-agent.md</a></li>
+            <li><a href="https://github.com/daliranas/DaliBackup-OSS/blob/main/docs/04-proxmox-ve-integration.md" target="_blank" class="text-emerald-400 hover:underline">04-proxmox-ve.md</a></li>
+            <li><a href="https://github.com/daliranas/DaliBackup-OSS/blob/main/docs/05-imap-email-sync.md" target="_blank" class="text-emerald-400 hover:underline">05-imap-sync.md</a></li>
+            <li><a href="https://github.com/daliranas/DaliBackup-OSS/blob/main/docs/06-rest-api-reference.md" target="_blank" class="text-emerald-400 hover:underline">06-rest-api.md</a></li>
+            <li><a href="https://github.com/daliranas/DaliBackup-OSS/blob/main/docs/07-disaster-recovery-pra.md" target="_blank" class="text-emerald-400 hover:underline">07-disaster-recovery.md</a></li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- Main Technical Content (9 cols) -->
+      <main class="lg:col-span-9 space-y-12 text-sm">
+
+        <!-- Section: Docker Compose -->
+        <section id="quickstart" class="space-y-4">
+          <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+            <span>Déploiement Docker Compose</span>
+          </h2>
+          <p class="text-neutral-400">
+            Fichier <code class="text-neutral-300 font-mono text-xs">docker-compose.yml</code> prêt pour la production avec persistance de la base, des clés de chiffrement et des certificats SSL :
+          </p>
+
+          <div class="rounded-lg bg-[#070a0f] border border-neutral-800 overflow-hidden font-mono text-xs">
+            <div class="px-3.5 py-2 bg-neutral-900 border-b border-neutral-800 text-neutral-400 flex justify-between">
+              <span>docker-compose.yml</span>
+              <span class="text-neutral-500">YAML</span>
+            </div>
+            <pre class="p-4 text-neutral-300 overflow-x-auto leading-relaxed"><code>version: '3.8'
+
+services:
+  dalibackup:
+    image: blanguedoc/dalibackup-oss:latest
+    container_name: dalibackup-oss
+    restart: always
+    ports:
+      - "3000:3000"   # HTTP Console & Redirection 308
+      - "3443:3443"   # HTTPS Console & API Agent
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SSL_PORT=3443
+      - SSL_ENABLED=true
+      - DATABASE_FILE=/app/data/dalibackup.db
+      - DEFAULT_LOCAL_STORAGE_PATH=/var/backups/dalibackup
+      - TZ=Europe/Paris
+    volumes:
+      - ./data:/app/data
+      - ./backups:/var/backups/dalibackup
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3</code></pre>
+          </div>
+        </section>
+
+        <!-- Section: Binaires & Release v1.0.0 -->
+        <section id="binaires" class="space-y-4">
+          <h2 class="text-xl font-bold text-white">Archives & Binaires Officiels v1.0.0</h2>
+          <p class="text-neutral-400">
+            Les packages compilés et les scripts d'agents Windows et Proxmox sont distribués avec leurs empreintes cryptographiques SHA-256 :
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
+            <div class="p-3.5 rounded bg-neutral-900/60 border border-neutral-800 space-y-2">
+              <div class="font-bold text-white flex items-center space-x-1.5">
+                <i class="fa-brands fa-windows text-blue-400"></i>
+                <span>Agents Hyper-V</span>
+              </div>
+              <p class="text-[11px] text-neutral-400">Scripts PowerShell, service NSSM et module RCT.</p>
+              <a href="https://github.com/daliranas/DaliBackup-OSS/releases/download/v1.0.0/dalibackup-hyperv-agents-v1.0.0.zip" class="text-emerald-400 hover:underline block pt-1">
+                ⬇️ Télécharger .zip (48 Ko)
+              </a>
+            </div>
+
+            <div class="p-3.5 rounded bg-neutral-900/60 border border-neutral-800 space-y-2">
+              <div class="font-bold text-white flex items-center space-x-1.5">
+                <i class="fa-brands fa-linux text-orange-400"></i>
+                <span>Proxmox Hooks</span>
+              </div>
+              <p class="text-[11px] text-neutral-400">Hook vzdump pour clusters PVE 7/8/9.</p>
+              <a href="https://github.com/daliranas/DaliBackup-OSS/releases/download/v1.0.0/dalibackup-proxmox-hooks-v1.0.0.tar.gz" class="text-emerald-400 hover:underline block pt-1">
+                ⬇️ Télécharger .tar.gz (1 Ko)
+              </a>
+            </div>
+
+            <div class="p-3.5 rounded bg-neutral-900/60 border border-neutral-800 space-y-2">
+              <div class="font-bold text-white flex items-center space-x-1.5">
+                <i class="fa-solid fa-server text-emerald-400"></i>
+                <span>Serveur Standalone</span>
+              </div>
+              <p class="text-[11px] text-neutral-400">Serveur compilé Node.js 22 LTS autonome.</p>
+              <a href="https://github.com/daliranas/DaliBackup-OSS/releases/download/v1.0.0/dalibackup-oss-server-v1.0.0.tar.gz" class="text-emerald-400 hover:underline block pt-1">
+                ⬇️ Télécharger .tar.gz (125 Ko)
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section: Architecture & Topologie -->
+        <section id="architecture" class="space-y-4">
+          <h2 class="text-xl font-bold text-white">Topologie & Principes de Conception</h2>
+          <p class="text-neutral-400">
+            DaliBackup-OSS repose sur une architecture sans état externe (Zero External DB) :
+          </p>
+
+          <div class="rounded-lg bg-[#070a0f] border border-neutral-800 p-4 font-mono text-xs text-neutral-300 overflow-x-auto leading-normal">
+                      ┌──────────────────────────────────────────────┐
+                      │         DaliBackup-OSS Control Plane         │
+                      │                                              │
+                      │  [ Express REST API / Web UI / HTTPS 3443 ]  │
+                      │        │                      │              │
+                      │        ▼                      ▼              │
+                      │  SQLite Database        CryptoVault GCM      │
+                      │  (node:sqlite)        (AES-256 Encryption)   │
+                      └───────┬───────────────────────┬──────────────┘
+                              │                       │
+           ┌──────────────────┼───────────────────────┼──────────────────┐
+           │                  │                       │                  │
+           ▼                  ▼                       ▼                  ▼
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│ Microsoft        │ │ Proxmox VE       │ │ IMAP Mailboxes   │ │ Target Storage   │
+│ Hyper-V Agent    │ │ vzdump Hook      │ │ Universal IMAP   │ │ POSIX / SFTP     │
+└──────────────────┘ └──────────────────┘ └──────────────────┘ └──────────────────┘
+          </div>
+        </section>
+
+        <!-- Section: Hypervisors -->
+        <section id="hypervisors" class="space-y-6">
+          <h2 class="text-xl font-bold text-white">Intégration Hyperviseurs & Moteurs</h2>
+
+          <div class="space-y-4">
+            <!-- Hyper-V -->
+            <div id="hyperv" class="p-4 rounded-lg bg-neutral-900/40 border border-neutral-800 space-y-2">
+              <h3 class="font-bold text-white text-base flex items-center space-x-2">
+                <i class="fa-brands fa-windows text-blue-400"></i>
+                <span>Microsoft Hyper-V</span>
+              </h3>
+              <p class="text-neutral-400 text-xs leading-relaxed">
+                Sauvegarde continue à chaud des disques virtuels (<code class="text-neutral-300">.vhdx</code> / <code class="text-neutral-300">.vhd</code>) via snapshots VSS cohérents avec les applications. Les disques sont compressés à la volée en GZip et streamés vers le serveur de stockage sans création de gros fichiers temporaires locaux.
+              </p>
+            </div>
+
+            <!-- Proxmox -->
+            <div id="proxmox" class="p-4 rounded-lg bg-neutral-900/40 border border-neutral-800 space-y-2">
+              <h3 class="font-bold text-white text-base flex items-center space-x-2">
+                <i class="fa-brands fa-linux text-orange-400"></i>
+                <span>Proxmox VE (QEMU & LXC)</span>
+              </h3>
+              <p class="text-neutral-400 text-xs leading-relaxed">
+                Support natif de l'API Proxmox 2.0 avec authentification par API Token chiffré. Le hook <code class="text-neutral-300">vzdump</code> permet la réplication et le catalogage automatique dès la fin d'un job Proxmox standard.
+              </p>
+            </div>
+
+            <!-- IMAP -->
+            <div id="imap" class="p-4 rounded-lg bg-neutral-900/40 border border-neutral-800 space-y-2">
+              <h3 class="font-bold text-white text-base flex items-center space-x-2">
+                <i class="fa-solid fa-envelope text-purple-400"></i>
+                <span>Universal IMAP Email Sync</span>
+              </h3>
+              <p class="text-neutral-400 text-xs leading-relaxed">
+                Synchronisation incrémentielle basée sur le pointeur UID pour chaque dossier (<code class="text-neutral-300">INBOX</code>, <code class="text-neutral-300">Sent</code>, etc.). Export au format standard <code class="text-neutral-300">.eml</code> dans une archive <code class="text-neutral-300">.tar.gz</code> immédiatement réimportable.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section: API REST -->
+        <section id="api" class="space-y-4">
+          <h2 class="text-xl font-bold text-white">API REST & Streaming Reference</h2>
+          <div class="rounded-lg bg-[#070a0f] border border-neutral-800 overflow-hidden font-mono text-xs">
+            <div class="px-3.5 py-2 bg-neutral-900 border-b border-neutral-800 text-neutral-400 flex justify-between">
+              <span>Endpoints Clés</span>
+              <span class="text-emerald-400">HTTPS 3443</span>
+            </div>
+            <div class="p-4 space-y-2.5 text-neutral-300">
+              <div><span class="text-emerald-400 font-bold">GET</span> <span class="text-white">/api/health</span> <span class="text-neutral-500">— Healthcheck du service</span></div>
+              <div><span class="text-sky-400 font-bold">POST</span> <span class="text-white">/api/auth/login</span> <span class="text-neutral-500">— Authentification Admin & émission JWT</span></div>
+              <div><span class="text-sky-400 font-bold">POST</span> <span class="text-white">/api/jobs/:id/run</span> <span class="text-neutral-500">— Déclenchement immédiat de sauvegarde</span></div>
+              <div><span class="text-emerald-400 font-bold">GET</span> <span class="text-white">/api/hypervisors/agent/tasks</span> <span class="text-neutral-500">— Polling & Claiming atomique par l'agent</span></div>
+              <div><span class="text-sky-400 font-bold">POST</span> <span class="text-white">/api/hypervisors/agent/upload/:taskId/:diskIndex</span> <span class="text-neutral-500">— Streaming binaire du disque</span></div>
+              <div><span class="text-sky-400 font-bold">POST</span> <span class="text-white">/api/restore-points/:id/restore</span> <span class="text-neutral-500">— Déclenchement d'un ordre PRA de restauration</span></div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-neutral-800 bg-[#070a0f] py-8 text-xs text-neutral-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div>
+        Conçu et développé par <strong class="text-neutral-300">Bastien LANGUEDOC (Daliranas)</strong> · <a href="https://daliranas.fr" target="_blank" class="text-emerald-400 hover:underline">daliranas.fr</a>
+      </div>
+      <div>
+        Licence DaliBackup Open Source Software &copy; 2026.
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function copyDockerCmd() {
+      const cmd = `docker run -d \\
+  --name dalibackup-oss \\
+  --restart always \\
+  -p 3000:3000 \\
+  -p 3443:3443 \\
+  -v $(pwd)/data:/app/data \\
+  -v $(pwd)/backups:/var/backups/dalibackup \\
+  blanguedoc/dalibackup-oss:latest`;
+      navigator.clipboard.writeText(cmd);
+      const text = document.getElementById('copyText');
+      text.innerText = 'Copié !';
+      setTimeout(() => text.innerText = 'Copier', 2000);
+    }
+  </script>
+
+</body>
+</html>
