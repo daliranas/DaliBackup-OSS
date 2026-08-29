@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  dalibackup-oss:
+    build: .
+    container_name: dalibackup-oss
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - JWT_SECRET=change_this_to_a_secure_random_string_32_chars_minimum
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin
+    volumes:
+      - ./data:/app/data
+      - /mnt/nfs_backups:/var/backups/dalibackup

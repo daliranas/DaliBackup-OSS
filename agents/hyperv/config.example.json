@@ -1,0 +1,6 @@
+{
+  "ApiUrl": "https://backup.daliranas.fr",
+  "ApiToken": "dalibkp_live_REPLACE_WITH_YOUR_TOKEN",
+  "PollIntervalSeconds": 60,
+  "MaxConcurrentJobs": 2
+}
