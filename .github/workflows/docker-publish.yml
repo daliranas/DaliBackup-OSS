@@ -61,7 +61,6 @@ jobs:
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/development' }}
             type=raw,value=development,enable=${{ github.ref == 'refs/heads/development' }}
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
 
       - name: 🚀 Build & Push to GHCR & Docker Hub
         uses: docker/build-push-action@v5
