@@ -57,13 +57,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ========================================================
+// Helper sécurisé de parsing JSON (évite les crashs Unexpected token '<')
+async function safeFetchJson(url, options = {}) {
+  const res = await fetch(url, options);
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    if (!res.ok) {
+      throw new Error(`Erreur serveur (${res.status}) : ${res.statusText || 'Réponse inattendue'}`);
+    }
+    throw new Error('Le serveur a renvoyé une réponse non-JSON.');
+  }
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || `Erreur requête (${res.status})`);
+  }
+  return data;
+}
+
 // SETUP WIZARD CONTROLLER
 // ========================================================
 
 async function checkSetupStatus() {
   try {
-    const res = await fetch('/api/auth/setup-status');
-    const data = await res.json();
+    const data = await safeFetchJson('/api/auth/setup-status');
     systemConfig.serverUrl = data.serverUrl || 'https://localhost:3443';
     systemConfig.agentToken = data.agentToken || 'dalibkp_oss_secure_token';
     updateAgentSnippets();
@@ -285,16 +301,11 @@ async function handleLogin(e) {
   const errorEl = document.getElementById('loginError');
 
   try {
-    const res = await fetch('/api/auth/login', {
+    const data = await safeFetchJson('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
-
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Erreur de connexion');
-    }
 
     authToken = data.token;
     localStorage.setItem('dalibkp_token', authToken);
