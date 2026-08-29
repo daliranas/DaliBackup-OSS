@@ -1,0 +1,53 @@
+# ============================================================================
+# DaliBackup-OSS GitLab CI/CD Pipeline
+# Author: Bastien LANGUEDOC (Daliranas)
+# ============================================================================
+
+stages:
+  - governance
+  - test
+  - agent-validation
+
+default:
+  interruptible: true
+
+# ----------------------------------------------------------------------------
+# 1. Governance & Critical Files Integrity
+# ----------------------------------------------------------------------------
+governance_integrity_check:
+  stage: governance
+  image: alpine:latest
+  script:
+    - echo "🔍 Verifying mandatory CI/CD workflows and governance documents..."
+    - test -f README.md || exit 1
+    - test -f LICENSE || exit 1
+    - test -f NOTICE || exit 1
+    - test -f CONTRIBUTING.md || exit 1
+    - test -f Dockerfile || exit 1
+    - test -f docker-compose.yml || exit 1
+    - echo "✅ All governance files are intact."
+
+# ----------------------------------------------------------------------------
+# 2. TypeScript Build, Unit Tests & HTTP E2E Tests
+# ----------------------------------------------------------------------------
+server_build_and_test:
+  stage: test
+  image: node:22-alpine
+  needs: [governance_integrity_check]
+  script:
+    - npm ci
+    - npm run build
+    - npm test
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+
+# ----------------------------------------------------------------------------
+# 3. Proxmox VE Shell Validation
+# ----------------------------------------------------------------------------
+proxmox_scripts_lint:
+  stage: agent-validation
+  image: koalaman/shellcheck-alpine:latest
+  script:
+    - shellcheck agents/proxmox/*.sh || true
