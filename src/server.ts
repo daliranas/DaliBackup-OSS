@@ -60,12 +60,18 @@ app.use('/api/storage-targets', storageRouter);
 app.use('/api/hypervisors', hypervisorRouter);
 app.use('/api/mail', mailRouter);
 
+let APP_VERSION = '1.0.0-oss';
+try {
+  const pkg = require(path.join(__dirname, '../package.json'));
+  if (pkg?.version) APP_VERSION = `${pkg.version}-oss`;
+} catch {}
+
 // Health Check
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({
     status: 'HEALTHY',
     service: 'DaliBackup-OSS',
-    version: '1.0.0-oss',
+    version: APP_VERSION,
     timestamp: new Date().toISOString()
   });
 });

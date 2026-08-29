@@ -135,26 +135,3 @@ jobs:
           file: ./Dockerfile
           push: false
           tags: dalibackup-oss:ci-test
-
-  # =========================================================================
-  # 6. Build Artifact Packaging (Hyper-V Agent ZIP & Server Tarball)
-  # =========================================================================
-  package-release-artifacts:
-    name: Package Ready-to-Deploy Artifacts
-    needs: [server-build-and-test, powershell-agent-validation, docker-build-test]
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: 📦 Create Hyper-V Agents ZIP
-        run: |
-          mkdir -p build-artifacts
-          zip -j build-artifacts/dalibackup-agents-hyperv.zip agents/hyperv/*.ps1 agents/hyperv/config.example.json agents/hyperv/README.md
-
-      - name: 📤 Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dalibackup-hyperv-agents
-          path: build-artifacts/dalibackup-agents-hyperv.zip
-          retention-days: 14

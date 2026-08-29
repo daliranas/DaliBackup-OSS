@@ -25,6 +25,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.history.replaceState({}, document.title, window.location.pathname);
   }
 
+  // Mettre à jour dynamiquement la version affichée dans le footer
+  updateAppVersion();
+
   // 1. Vérifier si le Setup Wizard initial est requis
   const setupNeeded = await checkSetupStatus();
   if (setupNeeded) {
@@ -288,6 +291,17 @@ function updateAgentSnippets() {
   if (el) {
     el.textContent = `.\\DaliAgent-HyperV.ps1 -ServerUrl "${systemConfig.serverUrl}" -ApiToken "${systemConfig.agentToken}"`;
   }
+}
+
+async function updateAppVersion() {
+  try {
+    const health = await fetch('/api/health').then(r => r.json());
+    if (health?.version) {
+      const vText = health.version.replace('-oss', '');
+      const footerEl = document.getElementById('appFooterVersion');
+      if (footerEl) footerEl.textContent = `v${vText}`;
+    }
+  } catch {}
 }
 
 // ========================================================
