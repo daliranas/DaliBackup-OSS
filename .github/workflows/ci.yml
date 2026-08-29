@@ -2,9 +2,9 @@ name: DaliBackup-OSS CI & Quality Engine
 
 on:
   push:
-    branches: [ "main", "develop", "release/*" ]
+    branches: [ "main", "development", "release/*", "daliranas-dev" ]
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "development" ]
   workflow_dispatch:
 
 permissions:
@@ -13,10 +13,41 @@ permissions:
 
 jobs:
   # =========================================================================
+  # 0. Governance, CI/CD Workflows & Critical Files Integrity Protection
+  # =========================================================================
+  governance-integrity-check:
+    name: Governance & Critical Files Integrity Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🛡️ Verify Mandatory CI/CD Workflows & Core Documents Existence
+        run: |
+          echo "Verifying mandatory CI/CD workflows..."
+          test -f .github/workflows/ci.yml || { echo "❌ Missing .github/workflows/ci.yml"; exit 1; }
+          test -f .github/workflows/docker-publish.yml || { echo "❌ Missing .github/workflows/docker-publish.yml"; exit 1; }
+          test -f .github/workflows/release.yml || { echo "❌ Missing .github/workflows/release.yml"; exit 1; }
+          test -f .github/workflows/pages.yml || { echo "❌ Missing .github/workflows/pages.yml"; exit 1; }
+          test -f .github/CODEOWNERS || { echo "❌ Missing .github/CODEOWNERS"; exit 1; }
+          
+          echo "Verifying mandatory documentation & licenses..."
+          test -s README.md || { echo "❌ Missing or empty README.md"; exit 1; }
+          test -s DOCKER_README.md || { echo "❌ Missing or empty DOCKER_README.md"; exit 1; }
+          test -s LICENSE || { echo "❌ Missing or empty LICENSE"; exit 1; }
+          test -s NOTICE || { echo "❌ Missing or empty NOTICE"; exit 1; }
+          test -s CONTRIBUTING.md || { echo "❌ Missing or empty CONTRIBUTING.md"; exit 1; }
+          test -s Dockerfile || { echo "❌ Missing or empty Dockerfile"; exit 1; }
+          test -s docker-compose.yml || { echo "❌ Missing or empty docker-compose.yml"; exit 1; }
+          
+          echo "✅ All critical CI/CD workflows and governance documents are intact and protected."
+
+  # =========================================================================
   # 1. TypeScript & Core Server Testing
   # =========================================================================
   server-build-and-test:
     name: Core Engine Test (Node ${{ matrix.node-version }} on ${{ matrix.os }})
+    needs: [governance-integrity-check]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

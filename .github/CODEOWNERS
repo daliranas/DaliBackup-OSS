@@ -1,7 +1,23 @@
 # ============================================================================
-# DaliBackup-OSS GitHub Code Owners
-# Maintained by: Bastien LANGUEDOC (Daliranas)
+# DaliBackup-OSS GitHub Code Owners & Immutable Security Governance
+# Maintained exclusively by: Bastien LANGUEDOC (Daliranas)
 # ============================================================================
 
-# All files require review and sign-off by repository owner
+# Global rule: All changes require review by @daliranas
 * @daliranas
+
+# 🔒 CRITICAL & PROTECTED CI/CD WORKFLOWS (Forbidden to delete or modify without @daliranas)
+/.github/ @daliranas
+/.github/workflows/ @daliranas
+/.github/workflows/* @daliranas
+/.github/CODEOWNERS @daliranas
+/.github/pull_request_template.md @daliranas
+
+# 🔒 CRITICAL LEGAL & GOVERNANCE DOCUMENTATION
+/README.md @daliranas
+/DOCKER_README.md @daliranas
+/LICENSE @daliranas
+/NOTICE @daliranas
+/CONTRIBUTING.md @daliranas
+/Dockerfile @daliranas
+/docker-compose.yml @daliranas
