@@ -16,7 +16,7 @@
 **DaliBackup-OSS** is an open-source, sovereign, lightweight, single-user backup, replication, and disaster recovery orchestration platform.  
 Designed for sysadmins, DevOps, and enterprises managing **Microsoft Hyper-V**, **Proxmox VE (QEMU & LXC)**, and **IMAP Email Mailboxes**, writing directly to **POSIX/NFS**, **SFTP (SSH)**, and **FTP/FTPS** storage destinations.
 
-[Explore Documentation](https://daliranas.fr) · [Report an Issue](https://github.com/daliranas/DaliBackup-OSS/issues) · [Official Website](https://daliranas.fr)
+[Explore Documentation](https://daliranas.github.io/DaliBackup-OSS/) · [Contributing Guide](./CONTRIBUTING.md) · [Report an Issue](https://github.com/daliranas/DaliBackup-OSS/issues) · [Official Website](https://daliranas.fr)
 
 </div>
 
