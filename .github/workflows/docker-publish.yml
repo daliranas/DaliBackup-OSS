@@ -58,7 +58,6 @@ jobs:
             blanguedoc/dalibackup-oss
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/development' }}
             type=raw,value=development,enable=${{ github.ref == 'refs/heads/development' }}
             type=semver,pattern={{version}}
 
