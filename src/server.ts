@@ -129,22 +129,13 @@ try {
       logActivity('SUCCESS', 'SSL', `Serveur DaliBackup-OSS HTTPS démarré sur le port ${SSL_PORT}`);
     });
 
-    // 2. Démarrer le serveur HTTP de redirection automatique vers HTTPS (308 préserve POST/PUT/DELETE)
-    const redirectApp = express();
-    redirectApp.use((req: Request, res: Response) => {
-      const rawHost = req.headers.host || HOST;
-      const hostname = rawHost.replace(/:\d+$/, '');
-      const redirectPort = Number(SSL_PORT) === 443 ? '' : `:${SSL_PORT}`;
-      const targetUrl = `https://${hostname}${redirectPort}${req.url}`;
-      res.redirect(308, targetUrl);
-    });
-
-    const httpServer = http.createServer(redirectApp);
+    // 2. Démarrer également le serveur HTTP pour un accès direct fluide sans blocage de certificat
+    const httpServer = http.createServer(app);
     httpServer.listen(Number(PORT), HOST, () => {
-      console.log(`🚀 DaliBackup-OSS HTTP (Redirection 301 vers HTTPS) sur http://${HOST}:${PORT} -> https://${HOST}:${SSL_PORT}`);
+      console.log(`🚀 DaliBackup-OSS HTTP actif sur http://${HOST}:${PORT}`);
       console.log(`🔒 Mode Single-User actif | Base SQLite prête`);
       console.log(`====================================================`);
-      logActivity('INFO', 'System', `Serveur HTTP avec redirection HTTPS démarré sur le port ${PORT}`);
+      logActivity('INFO', 'System', `Serveur DaliBackup-OSS HTTP démarré sur le port ${PORT}`);
     });
   } else {
     // Mode HTTP standard sans SSL
