@@ -38,7 +38,7 @@ Le flux de développement suit un pipeline hiérarchique rigoureux en 4 niveaux 
 | :--- | :--- | :--- |
 | **`main`** | 🔒 **Branche de production protégée**. Aucun push direct autorisé. Seul le mainteneur principal (`@daliranas`) peut approuver et fusionner les PRs. Les 6 tests CI/CD doivent être 100% au vert. | Reçoit les PRs depuis `development` ou `hotfix/*`. |
 | **`development`** | 🛠️ **Branche principale d'intégration**. Contient les dernières fonctionnalités en cours de stabilisation et de tests. | Reçoit les PRs des branches contributeurs `$username/*`. |
-| **`release/vX.Y.Z`** | 📦 **Branches de versionnement & gel de code**. Utilisées pour préparer les builds de distribution et les binaires finaux. | Dérivée de `main` lors de la publication d'une release officielle. |
+| **`release/vX.Y.Z`** | 📦 **Branches officielles de publication (RÉSERVÉES)**. **Strictement réservées à `@daliranas`**. Aucun contributeur externe n'a le droit de créer ou nommer sa branche avec le préfixe `release/`. Seules ces branches et les tags officiels déclenchent la publication des binaires et images Docker de production. | Dérivée de `main` exclusivement par l'administrateur. |
 | **`$username/*`** | 👤 **Branches individuelles de travail des contributeurs** (ex: `johndoe/feature-s3`, `alice/fix-cors`, `bastien-dev`). | Crée une Pull Request vers **`development`**. |
 
 ---
