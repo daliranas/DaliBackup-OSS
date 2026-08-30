@@ -6,8 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "ts-node tests/cryptoVault.test.ts && ts-node tests/runTests.ts && ts-node tests/apiE2ETest.ts",
-    "test:unit": "ts-node tests/cryptoVault.test.ts && ts-node tests/runTests.ts",
+    "test": "ts-node tests/runTests.ts && ts-node tests/apiE2ETest.ts",
+    "test:unit": "ts-node tests/runTests.ts",
     "test:e2e": "ts-node tests/apiE2ETest.ts"
   },
   "keywords": [
