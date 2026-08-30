@@ -46,6 +46,12 @@ async function runTestSuite() {
   assert(encrypted !== null && encrypted !== plainSecret && encrypted.includes(':'));
   const decrypted = decryptSecret(encrypted);
   assert.strictEqual(decrypted, plainSecret);
+
+  // Edge case: test with invalid formatted string (missing colons)
+  const invalidCipher = 'invalid-format-without-colons';
+  const edgeCaseDecrypted = decryptSecret(invalidCipher);
+  assert.strictEqual(edgeCaseDecrypted, invalidCipher, 'decryptSecret should return unmodified string for invalid format');
+
   console.log('   ✅ CryptoVault validé avec succès.');
 
   // Test 2: Sécurité Auth & Tokens Dynamiques
