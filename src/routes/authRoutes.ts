@@ -17,6 +17,7 @@ import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { db, logActivity } from '../config/database';
 import { generateUserToken, requireAuth, AuthenticatedRequest } from '../auth/singleUserAuth';
+import { clearSslCache } from '../config/sslManager';
 
 export const authRouter = Router();
 
@@ -102,6 +103,7 @@ authRouter.post('/setup-complete', (req: Request, res: Response): void => {
     db.prepare("UPDATE storage_targets SET remote_path = ? WHERE id = 'local-default'").run(storage_path);
   }
 
+  clearSslCache();
   logActivity('SUCCESS', 'SetupWizard', `Installation initiale terminée pour '${username}' (URL: ${server_url}, SSL: ${ssl_mode})`);
 
   const token = generateUserToken({ id: 1, username, email: email || 'admin@dalibackup.local' });
@@ -247,6 +249,7 @@ authRouter.post('/settings', requireAuth, (req: AuthenticatedRequest, res: Respo
     db.prepare("UPDATE storage_targets SET remote_path = ? WHERE id = 'local-default'").run(default_storage_path);
   }
 
+  clearSslCache();
   logActivity('INFO', 'Settings', `Paramètres système mis à jour (URL: ${server_url}, SSL: ${ssl_mode})`);
   res.json({ success: true, message: 'Paramètres système enregistrés avec succès.' });
 });

@@ -24,10 +24,20 @@ export interface SslCredentials {
   key: string;
 }
 
+let cachedSslCredentials: SslCredentials | null = null;
+
+export function clearSslCache(): void {
+  cachedSslCredentials = null;
+}
+
 /**
  * Récupère ou génère les certificats SSL natifs x509 (CN: DaliBackup, O: Daliranas)
  */
 export function getOrCreateSslCertificates(forceRegenerate = false): SslCredentials {
+  if (!forceRegenerate && cachedSslCredentials) {
+    return cachedSslCredentials;
+  }
+
   if (!fs.existsSync(SSL_DIR)) {
     fs.mkdirSync(SSL_DIR, { recursive: true });
   }
@@ -41,14 +51,16 @@ export function getOrCreateSslCertificates(forceRegenerate = false): SslCredenti
   if (settings?.ssl_mode === 'CUSTOM' && settings.ssl_cert && settings.ssl_key) {
     fs.writeFileSync(certPath, settings.ssl_cert, 'utf-8');
     fs.writeFileSync(keyPath, settings.ssl_key, 'utf-8');
-    return { cert: settings.ssl_cert, key: settings.ssl_key };
+    cachedSslCredentials = { cert: settings.ssl_cert, key: settings.ssl_key };
+    return cachedSslCredentials;
   }
 
   // 2. Si les certificats existent déjà et qu'on ne force pas la régénération
   if (!forceRegenerate && fs.existsSync(certPath) && fs.existsSync(keyPath)) {
     const cert = fs.readFileSync(certPath, 'utf-8');
     const key = fs.readFileSync(keyPath, 'utf-8');
-    return { cert, key };
+    cachedSslCredentials = { cert, key };
+    return cachedSslCredentials;
   }
 
   // 3. Découverte de toutes les adresses IP et hôtes de la machine
@@ -89,7 +101,8 @@ export function getOrCreateSslCertificates(forceRegenerate = false): SslCredenti
     db.prepare('UPDATE system_settings SET ssl_cert = ?, ssl_key = ? WHERE id = 1').run(cert, key);
     logActivity('SUCCESS', 'SSL', `Certificat SSL généré (CN: DaliBackup, O: Daliranas, SANs: ${sanList.length})`);
 
-    return { cert, key };
+    cachedSslCredentials = { cert, key };
+    return cachedSslCredentials;
   } catch (err: any) {
     console.error('[SSL] Erreur lors de la génération OpenSSL:', err.message);
     throw new Error(`Impossible de générer le certificat SSL: ${err.message}`);
