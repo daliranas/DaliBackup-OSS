@@ -40,10 +40,15 @@ export async function enforceRetention(jobId: string): Promise<{ prunedCount: nu
 
     const pointsToPrune = points.slice(retentionLimit);
     let prunedCount = 0;
+    const targetsCache = new Map<string, any>();
 
     for (const point of pointsToPrune) {
       const storageTargetId = point.storage_target_id || job.storage_target_id;
-      const target = db.prepare('SELECT * FROM storage_targets WHERE id = ?').get(storageTargetId) as any;
+      if (!targetsCache.has(storageTargetId)) {
+        const targetFromDb = db.prepare('SELECT * FROM storage_targets WHERE id = ?').get(storageTargetId) as any;
+        targetsCache.set(storageTargetId, targetFromDb);
+      }
+      const target = targetsCache.get(storageTargetId);
 
       // Récupérer l'intégralité des disques associés à ce point (Multi-disques)
       const diskRows = db.prepare('SELECT file_path FROM restore_point_disks WHERE restore_point_id = ?').all(point.id) as any[];
