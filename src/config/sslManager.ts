@@ -14,7 +14,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { db, logActivity } from './database';
 
 const SSL_DIR = path.join(process.cwd(), 'data/ssl');
@@ -88,11 +88,15 @@ export function getOrCreateSslCertificates(forceRegenerate = false): SslCredenti
   console.log(`[SSL] Génération d'un certificat SSL auto-signé natif (CN: DaliBackup, O: Daliranas, SANs: ${sanString})...`);
 
   try {
-    const cmd = `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 3650 -nodes \
-      -subj "/C=FR/ST=Hauts-de-France/L=Roubaix/O=Daliranas/OU=DaliBackup Security/CN=DaliBackup" \
-      -addext "subjectAltName=${sanString}"`;
+    const args = [
+      'req', '-x509', '-newkey', 'rsa:2048',
+      '-keyout', keyPath, '-out', certPath,
+      '-days', '3650', '-nodes',
+      '-subj', '/C=FR/ST=Hauts-de-France/L=Roubaix/O=Daliranas/OU=DaliBackup Security/CN=DaliBackup',
+      '-addext', `subjectAltName=${sanString}`
+    ];
 
-    execSync(cmd, { stdio: 'pipe' });
+    execFileSync('openssl', args, { stdio: 'pipe' });
 
     const cert = fs.readFileSync(certPath, 'utf-8');
     const key = fs.readFileSync(keyPath, 'utf-8');
