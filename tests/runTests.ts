@@ -310,6 +310,39 @@ async function runTestSuite() {
   assert(!fs.existsSync(mailArchivePath), 'L archive e-mail purgée par la rétention doit être supprimée du disque');
   console.log('   ✅ Moteur E-mail IMAP validé avec succès.');
 
+  // Test 9: SSL Manager OpenSSL Error
+  console.log('\n9. Test Erreur Génération SSL (OpenSSL non disponible)...');
+
+  // Mock child_process.execSync by intercepting the module require specifically for this test
+  const Module = require('module');
+  const originalRequire = Module.prototype.require;
+  Module.prototype.require = function(id: string) {
+    if (id === 'child_process') {
+      const cp = originalRequire.call(this, id);
+      return {
+        ...cp,
+        execSync: () => { throw new Error('Mocked OpenSSL Error'); }
+      };
+    }
+    return originalRequire.call(this, id);
+  };
+
+  // Clear the require cache so the module is re-evaluated using the mocked child_process
+  delete require.cache[require.resolve('../src/config/sslManager')];
+  const mockedSslManager = require('../src/config/sslManager');
+
+  let sslErrorCaught = false;
+  try {
+    mockedSslManager.getOrCreateSslCertificates(true); // Force regenerate to trigger execSync
+  } catch (err: any) {
+    sslErrorCaught = true;
+    assert(err.message.includes('Impossible de générer le certificat SSL'), 'Le message d erreur doit être propagé');
+  } finally {
+    Module.prototype.require = originalRequire;
+  }
+  assert(sslErrorCaught, 'Une erreur aurait dû être levée lors de l échec d OpenSSL');
+  console.log('   ✅ Gestion des erreurs OpenSSL validée.');
+
   // Nettoyage complet
   try { fs.rmSync(testStorageDir, { recursive: true, force: true }); } catch {}
   try {
