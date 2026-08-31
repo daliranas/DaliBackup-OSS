@@ -1,0 +1,56 @@
+name: 🐛 Bug Report
+description: Report an issue or unexpected behavior in DaliBackup-OSS
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please fill out the sections below to help us diagnose and fix the issue quickly.
+  - type: input
+    id: version
+    attributes:
+      label: DaliBackup-OSS Version
+      description: What version or commit hash are you running? (Check the bottom left footer or `/api/health`)
+      placeholder: "e.g. v1.0.0 or Docker latest"
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Operating System / Hypervisor
+      description: Where is DaliBackup-OSS / the agent running?
+      options:
+        - "Docker Container (Linux Alpine)"
+        - "Linux Native (Ubuntu / Debian / RHEL)"
+        - "Microsoft Hyper-V (Windows Server 2022/2025)"
+        - "Microsoft Hyper-V (Windows 10/11 Pro/Enterprise)"
+        - "Proxmox VE (PVE 7.x / 8.x / 9.x)"
+        - "Other"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs & Output
+      description: Please paste any relevant console logs or output from server/agent.
+      render: shell
