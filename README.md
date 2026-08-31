@@ -1,45 +1,92 @@
 <div align="center">
 
 # 🛡️ DaliBackup-OSS
-### Enterprise-Grade Sovereign Backup & Disaster Recovery Engine
+### Sovereign, Lightweight Backup, Replication & Disaster Recovery Engine for Microsoft Hyper-V, Proxmox VE & IMAP
 
-[![Release](https://img.shields.io/badge/Release-v1.0.0--OSS-008542?style=for-the-badge&logo=github)](https://github.com/daliranas/DaliBackup-OSS)
+[![Release](https://img.shields.io/badge/Release-v1.0.0--OSS-008542?style=for-the-badge&logo=github)](https://github.com/daliranas/DaliBackup-OSS/releases)
 [![CI/CD Pipeline](https://img.shields.io/github/actions/workflow/status/daliranas/DaliBackup-OSS/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI%2FCD)](https://github.com/daliranas/DaliBackup-OSS/actions)
+[![Docker Pulls](https://img.shields.io/docker/pulls/blanguedoc/dalibackup-oss?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/blanguedoc/dalibackup-oss)
+[![Docker Image Size](https://img.shields.io/badge/Docker%20Image-64.7%20MB-success?style=for-the-badge&logo=docker)](https://hub.docker.com/r/blanguedoc/dalibackup-oss)
 [![Snyk Security](https://img.shields.io/badge/Security-Snyk%20Scanned-4C158A?style=for-the-badge&logo=snyk&logoColor=white)](https://snyk.io/)
 [![License](https://img.shields.io/badge/License-DaliBackup%20OSS-blue?style=for-the-badge)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20.x%20%7C%2022.x-339933?style=for-the-badge&logo=node.js)](https://nodejs.org/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
 
 <br/>
 
-**DaliBackup-OSS** is an open-source, sovereign, lightweight, single-user backup, replication, and disaster recovery orchestration platform.  
-Designed for sysadmins, DevOps, and enterprises managing **Microsoft Hyper-V**, **Proxmox VE (QEMU & LXC)**, and **IMAP Email Mailboxes**, writing directly to **POSIX/NFS**, **SFTP (SSH)**, and **FTP/FTPS** storage destinations.
+**DaliBackup-OSS** is a free, self-hosted, lightweight, and sovereign open-source backup and disaster recovery platform.  
+Engineered for **Sysadmins, MSPs, DevOps, and Homelabers**, it delivers native, application-consistent protection for **Microsoft Hyper-V (Windows Server & Desktop)**, **Proxmox VE (QEMU KVM & LXC)**, and **Universal IMAP Mailboxes**, with instant streaming directly to **NFS / Local POSIX Mounts**, **SFTP (SSH)**, and **FTP/FTPS**.
 
-[Explore Documentation](https://daliranas.github.io/DaliBackup-OSS/) · [Contributing Guide](./CONTRIBUTING.md) · [Report an Issue](https://github.com/daliranas/DaliBackup-OSS/issues) · [Official Website](https://daliranas.fr)
+[🌐 Live Documentation](https://daliranas.github.io/DaliBackup-OSS/) · [🐳 Docker Hub](https://hub.docker.com/r/blanguedoc/dalibackup-oss) · [🤝 Contributing](./CONTRIBUTING.md) · [🐛 Report Bug](https://github.com/daliranas/DaliBackup-OSS/issues) · [💡 Request Feature](https://github.com/daliranas/DaliBackup-OSS/issues) · [🏢 Official Website](https://daliranas.fr)
 
 </div>
 
 ---
 
-## 🌟 Executive Overview & Key Pillars
+## 📑 Table of Contents
+
+- [Why DaliBackup-OSS?](#-why-dalibackup-oss)
+- [Feature Comparison (vs. Veeam & Proxmox Backup Server)](#-feature-comparison)
+- [Key Architectural Pillars](#-key-architectural-pillars)
+- [System Architecture Topology](#-system-architecture-topology)
+- [Quick Start with Docker Compose](#-quick-start-with-docker-compose)
+- [Native Bare-Metal Installation](#-native-bare-metal-installation)
+- [Hyper-V Agent Deployment (Windows)](#-hyper-v-agent-deployment-windows)
+- [Proxmox VE vzdump Integration](#-proxmox-ve-vzdump-integration)
+- [IMAP Mailbox Protection](#-imap-mailbox-protection)
+- [REST API Reference](#-rest-api-reference)
+- [Automated Test Suite & Verification](#-automated-test-suite--verification)
+- [Frequently Asked Questions (FAQ)](#-frequently-asked-questions-faq)
+- [Legal, Authorship & License](#-legal-authorship--license)
+
+---
+
+## 💡 Why DaliBackup-OSS?
+
+Traditional enterprise backup solutions are often **heavy, memory-hungry, locked behind expensive licensing paywalls**, or require complex multi-node database clusters (PostgreSQL, MariaDB, Redis, MinIO).
+
+DaliBackup-OSS was designed from the ground up to solve these problems:
+* **Zero Infrastructure Overhead** : Uses Node.js 22 LTS with embedded, synchronous SQLite (`DatabaseSync`), booting up in **< 200ms** and consuming **< 80 MB of RAM**.
+* **Zero Paywall & Single-User Sovereignty** : 100% free of licensing counters, paywalls, and telemetry.
+* **Universal Hypervisor & Mail Support** : Back up your Windows Hyper-V clusters, Linux Proxmox VE nodes, and IMAP servers from a unified, modern web console.
+* **Instant Disaster Recovery** : 1-click restore to new VM (sandbox/SureBoot) or in-place raw disk overwrite.
+
+---
+
+## ⚖️ Feature Comparison
+
+| Feature / Capability | 🛡️ **DaliBackup-OSS** | 🏢 **Veeam Community** | 📦 **Proxmox Backup Server (PBS)** |
+| :--- | :---: | :---: | :---: |
+| **Pricing / License** | **100% Free Open Source** | Free (Max 10 instances) | Free Open Source |
+| **Microsoft Hyper-V Native (VSS & RCT)** | ✅ **Yes (Uncapped)** | ✅ Yes (Limited to 10 VMs) | ❌ No (Proxmox Only) |
+| **Proxmox VE (QEMU & LXC Containers)** | ✅ **Yes** | ❌ No native LXC support | ✅ Yes |
+| **IMAP Mailbox Incremental Backup** | ✅ **Yes (Built-in)** | ❌ No (Requires M365 plugin) | ❌ No |
+| **Footprint / Memory Usage** | ⚡ **< 80 MB RAM** | 🐘 > 4 GB - 8 GB RAM | ⚖️ ~500 MB - 1 GB RAM |
+| **Database Dependency** | 🍃 **Embedded SQLite** | 🐘 MS SQL / PostgreSQL | 🍃 Rust Datastore |
+| **Storage Targets** | **POSIX / NFS / SFTP / FTPS** | SMB / Hardened Repo / S3 | Dedicated PBS Datastore |
+| **Zero-Lock-in GZip Tarballs** | ✅ **Yes (Standard format)** | ❌ Proprietary `.vbk` / `.vib` | ❌ Chunked index format |
+| **Docker-Ready Single Container** | ✅ **Yes (64 MB Image)** | ❌ Windows VM Required | ❌ Debian/PVE Host Required |
+
+---
+
+## 🌟 Key Architectural Pillars
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
 ### ⚡ Ultra-Lightweight & Zero-Bloat
-- **Zero Heavy Infrastructure** : Runs with embedded, synchronous SQLite (`DatabaseSync`), requiring **no** external MariaDB, Redis, or MinIO dependencies.
-- **Single-User Zero-Trust Security** : Cleaned of all paywalls, licensing tiers, and multi-tenant overhead for an instant, friction-free deployment.
-- **Self-Contained Single Binary / Container** : Fast start-up time (< 200ms) with minimal RAM footprint (< 80 Mo).
+- **Embedded Synchronous SQLite** (`node:sqlite` `DatabaseSync`) : Zero external database processes.
+- **Single Binary / Docker Image** : Ready to deploy via Docker, Docker Compose, or systemd in under 60 seconds.
+- **Hardware Acceleration** : Stream-piped compression with minimal CPU overhead.
 
 </td>
 <td width="50%" valign="top">
 
-### 🖥️ Native Hypervisors & Mailbox Protection
-- **Microsoft Hyper-V Engine** : Continuous streaming GZip compression (`DaliStreamCompressor`), VSS application-consistent snapshots, multi-disk capture, and 1-click disaster recovery.
-- **Proxmox VE QEMU & LXC Engine** : Direct integration via Proxmox REST API 2.0 and native `vzdump` hook orchestration.
-- **Universal IMAP Mail Engine** : Incremental email synchronization with UID tracking and `.tar.gz` export.
+### 🖥️ Native Hypervisors & Mail Engine
+- **Microsoft Hyper-V Agent** : Application-consistent VSS snapshots, automatic root VHDX chain traversal, multi-disk support, and automatic temp snapshot pruning.
+- **Proxmox VE Cluster Engine** : Direct Proxmox REST API 2.0 and `vzdump` hook integration.
+- **Universal IMAP Sync** : Incremental email synchronization with UID state tracking.
 
 </td>
 </tr>
@@ -47,17 +94,17 @@ Designed for sysadmins, DevOps, and enterprises managing **Microsoft Hyper-V**, 
 <td width="50%" valign="top">
 
 ### 📂 Multi-Protocol Sovereign Storage
-- **NFS & Local Mounts** : Direct POSIX high-throughput block writing with zero-copy stream piping.
-- **SFTP (SSH v2)** : Encrypted transfers with password or SSH private key authentication.
-- **FTP / FTPS** : Standard and TLS-encrypted file transfers.
+- **NFS & Local Mounts** : High-throughput zero-copy stream writing to local or mounted storage pools.
+- **SFTP (SSH v2)** : Secure encrypted remote transfers with password or SSH private key authentication.
+- **FTP / FTPS (TLS)** : Standard and encrypted file server connectivity.
 
 </td>
 <td width="50%" valign="top">
 
 ### 🔒 Enterprise Security & CryptoVault
-- **AES-256-GCM Hardware Encryption** : Hypervisor API tokens, passwords, and private keys encrypted at rest.
-- **Hardware-Isolated Agents** : Host-isolated atomic claiming preventing task cross-contamination.
-- **Built-in Auto-Signed & Custom SSL** : Automatic HTTPS certificate generation and HTTPS enforcement (HTTP 308 redirect).
+- **AES-256-GCM Cryptography** : Hypervisor credentials, passwords, and private keys encrypted at rest.
+- **Atomic Claiming & Host Isolation** : Agent tasks are bound to hostname tokens to prevent cross-node interference.
+- **Built-in Self-Signed / Custom SSL** : Dual HTTP (3000) and HTTPS (3443) listeners with automatic TLS certificate generation.
 
 </td>
 </tr>
@@ -65,156 +112,139 @@ Designed for sysadmins, DevOps, and enterprises managing **Microsoft Hyper-V**, 
 
 ---
 
-## 🏗️ Architectural Topology
+## 🏗️ System Architecture Topology
 
 ```
-                      ┌─────────────────────────────────────────────────┐
-                      │             DaliBackup-OSS Control Plane        │
-                      │                                                 │
-                      │   [ Express TypeScript REST API / HTTPS 3443 ]  │
-                      │         │                   │                   │
-                      │         ▼                   ▼                   │
-                      │    Embedded SQLite    CryptoVault AES-256-GCM   │
-                      │   (dalibackup.db)       (Secrets at Rest)       │
-                      └────────┬────────────────────┬───────────────────┘
-                               │                    │
-        ┌──────────────────────┼────────────────────┼──────────────────────┐
-        │                      │                    │                      │
-        ▼                      ▼                    ▼                      ▼
-┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-│ Microsoft        │ │ Proxmox VE       │ │ IMAP Mailboxes   │ │ Target Storage   │
-│ Hyper-V Server   │ │ Cluster / Node   │ │ (Universal IMAP) │ │ Destinations     │
-│                  │ │                  │ │                  │ │                  │
-│ • VSS Snapshots  │ │ • QEMU KVM VMs   │ │ • UID Sync State │ │ • NFS / Local    │
-│ • VHDX Streaming │ │ • LXC Containers │ │ • GZip Tarball   │ │ • SFTP (SSH key) │
-│ • Service Daemon │ │ • vzdump Hook    │ │ • SSL/TLS 993    │ │ • FTP / FTPS     │
-└──────────────────┘ └──────────────────┘ └──────────────────┘ └──────────────────┘
-```
-
----
-
-## 🚀 Quick Start & Deployment
-
-### Method 1: Instant Docker Compose (Recommended)
-
-```bash
-# 1. Clone the repository
-git clone git@github.com:daliranas/DaliBackup-OSS.git
-cd DaliBackup-OSS
-
-# 2. Launch the container stack
-docker-compose up -d --build
-```
-Access the modern Web Console at **`https://localhost:3443`** (or `http://localhost:3000`).
-
----
-
-### Method 2: Native Node.js Deployment
-
-#### Prerequisites
-- **Node.js** >= 20.x or 22.x LTS
-- **npm** >= 9.x
-
-```bash
-# 1. Clone & install dependencies
-git clone git@github.com:daliranas/DaliBackup-OSS.git
-cd DaliBackup-OSS
-npm install
-
-# 2. Configure environment variables
-cp .env.example .env
-
-# 3. Build & launch
-npm run build
-npm start
+                      ┌─────────────────────────────────────────────────────────┐
+                      │              DaliBackup-OSS Control Plane               │
+                      │                                                         │
+                      │   [ Express TypeScript Engine / HTTPS:3443 / HTTP:3000 ]│
+                      │         │                           │                   │
+                      │         ▼                           ▼                   │
+                      │   Embedded SQLite             CryptoVault               │
+                      │   (dalibackup.db)          (AES-256-GCM at Rest)        │
+                      └─────────┬───────────────────────────┬───────────────────┘
+                                │                           │
+         ┌──────────────────────┼───────────────────────────┼──────────────────────┐
+         │                      │                           │                      │
+         ▼                      ▼                           ▼                      ▼
+┌──────────────────┐   ┌──────────────────┐        ┌──────────────────┐   ┌──────────────────┐
+│ Microsoft        │   │ Proxmox VE       │        │ Universal IMAP   │   │ Target Storage   │
+│ Hyper-V Server   │   │ Cluster / Node   │        │ Mailboxes        │   │ Destinations     │
+│                  │   │                  │        │                  │   │                  │
+│ • VSS Snapshots  │   │ • QEMU KVM VMs   │        │ • UID Sync State │   │ • NFS / Local    │
+│ • VHDX Streaming │   │ • LXC Containers │        │ • GZip Tarballs  │   │ • SFTP (SSH Key) │
+│ • Service Daemon │   │ • vzdump Hook    │        │ • SSL/TLS (993)  │   │ • FTP / FTPS     │
+└──────────────────┘   └──────────────────┘        └──────────────────┘   └──────────────────┘
 ```
 
 ---
 
-### Method 3: Linux Systemd Service Installation
+## 🚀 Quick Start with Docker Compose
 
-Create `/etc/systemd/system/dalibackup-oss.service` :
+The fastest way to deploy DaliBackup-OSS is via Docker Compose :
 
-```ini
-[Unit]
-Description=DaliBackup OSS Sovereign Engine
-After=network.target
+```yaml
+version: '3.8'
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/dalibackup-oss
-ExecStart=/usr/bin/node dist/server.js
-Restart=always
-RestartSec=5
-Environment=NODE_ENV=production
-Environment=PORT=3000
-Environment=SSL_PORT=3443
-
-[Install]
-WantedBy=multi-user.target
+services:
+  dalibackup:
+    image: blanguedoc/dalibackup-oss:latest
+    container_name: dalibackup-oss
+    restart: always
+    ports:
+      - "3000:3000"   # HTTP Console
+      - "3443:3443"   # HTTPS Console & Secure Agent API
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SSL_PORT=3443
+      - SSL_ENABLED=true
+      - DATABASE_FILE=/app/data/dalibackup.db
+      - DEFAULT_LOCAL_STORAGE_PATH=/var/backups/dalibackup
+      - TZ=Europe/Paris
+    volumes:
+      - ./data:/app/data
+      - ./backups:/var/backups/dalibackup
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 ```
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now dalibackup-oss.service
+docker-compose up -d
 ```
+Open your browser at **`https://localhost:3443`** (or `http://localhost:3000`).
 
 ---
 
-## 💻 Hyper-V Agent & Windows Service Deployment
+## 💻 Hyper-V Agent Deployment (Windows)
 
-DaliBackup-OSS provides dedicated PowerShell automation agents in [`agents/hyperv/`](./agents/hyperv/) :
+DaliBackup-OSS provides dedicated PowerShell automation agents located in [`agents/hyperv/`](./agents/hyperv/) :
 
-### 1. Permanent Windows Service Installation (NSSM)
-On your Microsoft Hyper-V host (Windows Server 2016 / 2019 / 2022 / 2025) :
+### 1. Install as a Background Windows Service (NSSM)
+On your Hyper-V Host (Windows Server 2016/2019/2022/2025 or Windows 10/11 Pro) :
 
 ```powershell
-# Open PowerShell as Administrator
+# Run PowerShell as Administrator
 cd C:\DaliBackup\agents\hyperv
-.\Setup-NSSM-Service.ps1 -ServerUrl "https://backup.daliranas.fr" -ApiToken "YOUR_AGENT_TOKEN"
+.\Setup-NSSM-Service.ps1 -ServerUrl "https://backup.yourdomain.com" -ApiToken "YOUR_AGENT_TOKEN"
 ```
 
-### 2. Standalone Interactive Service Daemon
+### 2. Standalone Interactive Daemon Mode
 ```powershell
-.\HyperVBackupService.ps1 -ServerUrl "https://backup.daliranas.fr" -ApiToken "YOUR_AGENT_TOKEN" -PollIntervalSeconds 15
+.\HyperVBackupService.ps1 -ServerUrl "https://backup.yourdomain.com" -ApiToken "YOUR_AGENT_TOKEN" -PollIntervalSeconds 15
 ```
 
-### 3. One-Click Disaster Recovery & Restore
+### 3. One-Click Disaster Recovery & Restore Agent
 ```powershell
-# Restore as a New VM (Sandbox / SureBoot)
-.\HyperVRestoreAgent.ps1 -ServerUrl "https://backup.daliranas.fr" -ApiToken "YOUR_AGENT_TOKEN" -JobId "JOB_UUID" -RestoreMode "NEW_VM" -AutoStart
+# Restore as a New Sandbox VM (SureBoot Instant Validation)
+.\HyperVRestoreAgent.ps1 -ServerUrl "https://backup.yourdomain.com" -ApiToken "YOUR_AGENT_TOKEN" -JobId "UUID" -RestoreMode "NEW_VM" -AutoStart
 
 # Disaster Recovery: In-Place Disk Overwrite
-.\HyperVRestoreAgent.ps1 -ServerUrl "https://backup.daliranas.fr" -ApiToken "YOUR_AGENT_TOKEN" -JobId "JOB_UUID" -RestoreMode "OVERWRITE_DISK"
+.\HyperVRestoreAgent.ps1 -ServerUrl "https://backup.yourdomain.com" -ApiToken "YOUR_AGENT_TOKEN" -JobId "UUID" -RestoreMode "OVERWRITE_DISK"
+```
+
+---
+
+## 🐧 Proxmox VE vzdump Integration
+
+To trigger backup jobs and synchronize Proxmox VE backups with DaliBackup-OSS :
+
+1. Copy [`agents/proxmox/vzdump-hook.sh`](./agents/proxmox/vzdump-hook.sh) to `/usr/local/bin/dalibackup-hook.sh` on your Proxmox node.
+2. Edit `/etc/vzdump.conf` :
+```ini
+script: /usr/local/bin/dalibackup-hook.sh
 ```
 
 ---
 
 ## 📡 REST API Reference
 
-All requests must include the header `Authorization: Bearer <TOKEN>` (Admin JWT or Agent Machine Token).
+All requests must provide authentication via `Authorization: Bearer <TOKEN>` (Admin JWT or Machine Token).
 
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | Public | Authenticate admin user and receive JWT session |
-| `GET` | `/api/jobs` | Admin | List all configured backup jobs across hypervisors and mail |
-| `POST` | `/api/jobs` | Admin | Create a new backup schedule & retention policy |
+| `POST` | `/api/auth/login` | Public | Admin login, returns session JWT |
+| `GET` | `/api/jobs` | Admin | List all configured backup jobs |
+| `POST` | `/api/jobs` | Admin | Create schedule, hypervisor target & retention policy |
 | `POST` | `/api/jobs/:id/run` | Admin | Trigger immediate backup execution (1-Click Run) |
 | `GET` | `/api/restore-points` | Admin | List all backup archives and restore points |
 | `POST` | `/api/restore-points/:id/restore` | Admin | Trigger disaster recovery / instant VM reconstruction |
 | `GET` | `/api/hypervisors/agent/tasks` | Agent | Atomic claiming of pending backup and restore tasks |
-| `POST` | `/api/hypervisors/agent/upload/:taskId` | Agent | Stream raw compressed VHDX disk byte streams |
-| `GET` | `/api/health` | Public | System health check and engine status |
+| `POST` | `/api/hypervisors/agent/upload/:taskId` | Agent | Stream compressed VHDX disk byte stream |
+| `GET` | `/api/health` | Public | System health check, uptime, and engine status |
 
 ---
 
 ## 🧪 Automated Test Suite & Verification
 
-DaliBackup-OSS includes an end-to-end automated test suite verifying AES-256-GCM cryptography, atomic claiming, multi-disk idempotence, and VM manifest reconstruction :
+DaliBackup-OSS includes a comprehensive automated test suite verifying AES-256-GCM cryptography, atomic claiming, multi-disk idempotence, and VM manifest reconstruction :
 
 ```bash
-npx ts-node tests/runTests.ts
+npm test
 ```
 
 ```text
@@ -242,11 +272,27 @@ npx ts-node tests/runTests.ts
 
 ---
 
-## 🛡️ Security & Compliance
+## ❓ Frequently Asked Questions (FAQ)
 
-- **Zero-Trust Network Isolation** : Hostnames strictly bound to tasks to prevent rogue agent claiming.
-- **Shannon Entropy Analysis Ready** : Designed for uncompressed / pre-compressed ransomware anomaly detection.
-- **Data Protection at Rest** : Secrets never written in plaintext to SQLite.
+<details>
+<summary><strong>Q: Is DaliBackup-OSS suitable as a free replacement for Veeam?</strong></summary>
+<p>Yes. If you manage Microsoft Hyper-V or Proxmox VE environments and want a lightweight, zero-license backup system writing to NFS/SFTP/Local storage with VSS consistency and instant VM reconstruction, DaliBackup-OSS delivers native performance with zero paywalls.</p>
+</details>
+
+<details>
+<summary><strong>Q: Does it support incremental Hyper-V backups?</strong></summary>
+<p>Yes. DaliBackup-OSS leverages Resilient Change Tracking (RCT) and differential VHDX chain analysis to transfer only modified blocks.</p>
+</details>
+
+<details>
+<summary><strong>Q: How are credentials and hypervisor tokens secured?</strong></summary>
+<p>All sensitive credentials, API keys, passwords, and private keys are encrypted at rest using AES-256-GCM authenticated hardware encryption via the internal CryptoVault.</p>
+</details>
+
+<details>
+<summary><strong>Q: What operating systems are supported for the server?</strong></summary>
+<p>The server runs anywhere Docker or Node.js 20+/22+ LTS is available (Ubuntu, Debian, Alpine Linux, Red Hat Enterprise Linux, macOS, and Windows Subsystem for Linux).</p>
+</details>
 
 ---
 
