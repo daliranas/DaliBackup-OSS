@@ -89,11 +89,21 @@ export function getOrCreateSslCertificates(forceRegenerate = false): SslCredenti
 
   try {
     const args = [
-      'req', '-x509', '-newkey', 'rsa:2048',
-      '-keyout', keyPath, '-out', certPath,
-      '-days', '3650', '-nodes',
-      '-subj', '/C=FR/ST=Hauts-de-France/L=Roubaix/O=Daliranas/OU=DaliBackup Security/CN=DaliBackup',
-      '-addext', `subjectAltName=${sanString}`
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-keyout',
+      keyPath,
+      '-out',
+      certPath,
+      '-days',
+      '3650',
+      '-nodes',
+      '-subj',
+      '/C=FR/ST=Hauts-de-France/L=Roubaix/O=Daliranas/OU=DaliBackup Security/CN=DaliBackup',
+      '-addext',
+      `subjectAltName=${sanString}`
     ];
 
     execFileSync('openssl', args, { stdio: 'pipe' });
