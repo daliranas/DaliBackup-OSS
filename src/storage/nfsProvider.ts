@@ -20,7 +20,15 @@ export class NfsProvider implements IStorageProvider {
   private basePath: string;
 
   constructor(private config: StorageConfig) {
-    this.basePath = config.remote_path;
+    this.basePath = path.resolve(config.remote_path);
+  }
+
+  private getSecurePath(remoteFilePath: string): string {
+    const fullPath = path.resolve(this.basePath, remoteFilePath);
+    if (!fullPath.startsWith(this.basePath + path.sep) && fullPath !== this.basePath) {
+      throw new Error(`Tentative de path traversal détectée : accès refusé.`);
+    }
+    return fullPath;
   }
 
   async testConnection(): Promise<{ success: boolean; message: string; freeSpaceBytes?: number }> {
@@ -43,7 +51,7 @@ export class NfsProvider implements IStorageProvider {
   }
 
   async uploadStream(remoteFilePath: string, readStream: Readable): Promise<{ bytesWritten: number; path: string }> {
-    const fullPath = path.isAbsolute(remoteFilePath) ? remoteFilePath : path.join(this.basePath, remoteFilePath);
+    const fullPath = this.getSecurePath(remoteFilePath);
     await fs.ensureDir(path.dirname(fullPath));
 
     return new Promise((resolve, reject) => {
@@ -66,7 +74,7 @@ export class NfsProvider implements IStorageProvider {
   }
 
   async uploadLocalFile(localFilePath: string, remoteFilePath: string): Promise<{ bytesWritten: number; path: string }> {
-    const fullPath = path.isAbsolute(remoteFilePath) ? remoteFilePath : path.join(this.basePath, remoteFilePath);
+    const fullPath = this.getSecurePath(remoteFilePath);
     await fs.ensureDir(path.dirname(fullPath));
     await fs.copy(localFilePath, fullPath, { overwrite: true });
     const stat = await fs.stat(fullPath);
@@ -74,7 +82,7 @@ export class NfsProvider implements IStorageProvider {
   }
 
   async downloadStream(remoteFilePath: string): Promise<Readable> {
-    const fullPath = path.isAbsolute(remoteFilePath) ? remoteFilePath : path.join(this.basePath, remoteFilePath);
+    const fullPath = this.getSecurePath(remoteFilePath);
     if (!(await fs.pathExists(fullPath))) {
       throw new Error(`Fichier introuvable sur le stockage : ${fullPath}`);
     }
@@ -82,7 +90,7 @@ export class NfsProvider implements IStorageProvider {
   }
 
   async listBackups(directoryPath?: string): Promise<BackupFileInfo[]> {
-    const targetDir = directoryPath ? path.join(this.basePath, directoryPath) : this.basePath;
+    const targetDir = directoryPath ? this.getSecurePath(directoryPath) : this.basePath;
     if (!(await fs.pathExists(targetDir))) {
       return [];
     }
@@ -107,7 +115,7 @@ export class NfsProvider implements IStorageProvider {
   }
 
   async deleteFile(remoteFilePath: string): Promise<boolean> {
-    const fullPath = path.isAbsolute(remoteFilePath) ? remoteFilePath : path.join(this.basePath, remoteFilePath);
+    const fullPath = this.getSecurePath(remoteFilePath);
     if (await fs.pathExists(fullPath)) {
       await fs.remove(fullPath);
       return true;
