@@ -109,7 +109,7 @@ hypervisorRouter.post('/agent/manifest/:taskId', requireAgentAuth, async (req: A
 });
 
 // Téléversement d'un flux d'archive binaire réel par l'agent pour un disque donné (Multi-disques indexé)
-hypervisorRouter.post('/agent/upload/:taskId/:diskIndex?', requireAgentAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+hypervisorRouter.post(['/agent/upload/:taskId', '/agent/upload/:taskId/:diskIndex'], requireAgentAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { taskId } = req.params;
   const diskIndex = parseInt(req.params.diskIndex || (req.headers['x-disk-index'] as string) || '0', 10);
   const totalDisks = parseInt((req.query.totalDisks as string) || (req.headers['x-total-disks'] as string) || '1', 10);
@@ -142,7 +142,7 @@ hypervisorRouter.get('/agent/restore-manifest/:taskId', requireAgentAuth, async 
 });
 
 // Téléchargement du flux de sauvegarde pour un disque donné lors de la restauration
-hypervisorRouter.get('/agent/download-restore/:taskId/:diskIndex?', requireAgentAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+hypervisorRouter.get(['/agent/download-restore/:taskId', '/agent/download-restore/:taskId/:diskIndex'], requireAgentAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { taskId } = req.params;
   const targetDiskIndex = parseInt(req.params.diskIndex || '0', 10);
 
