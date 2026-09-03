@@ -23,6 +23,20 @@ export class SftpProvider implements IStorageProvider {
     this.config = config;
   }
 
+  private getSecurePath(remoteFilePath: string): string {
+    const safeRemotePath = remoteFilePath.replace(/^\/+/, '');
+    const fullPath = path.posix.join(this.config.remote_path, safeRemotePath);
+
+    const checkBase = path.posix.resolve('/', this.config.remote_path);
+    const checkFull = path.posix.resolve('/', fullPath);
+    const prefix = checkBase.endsWith('/') ? checkBase : checkBase + '/';
+
+    if (!checkFull.startsWith(prefix) && checkFull !== checkBase) {
+      throw new Error('Tentative de path traversal détectée : accès refusé.');
+    }
+    return fullPath;
+  }
+
   private async getClient(): Promise<SftpClient> {
     const sftp = new SftpClient();
     const connectOptions: any = {
@@ -63,9 +77,9 @@ export class SftpProvider implements IStorageProvider {
   }
 
   async uploadStream(remoteFilePath: string, readStream: Readable): Promise<{ bytesWritten: number; path: string }> {
+    const fullPath = this.getSecurePath(remoteFilePath);
     const sftp = await this.getClient();
     try {
-      const fullPath = path.posix.join(this.config.remote_path, remoteFilePath);
       const remoteDir = path.posix.dirname(fullPath);
       await sftp.mkdir(remoteDir, true);
 
@@ -78,9 +92,9 @@ export class SftpProvider implements IStorageProvider {
   }
 
   async uploadLocalFile(localFilePath: string, remoteFilePath: string): Promise<{ bytesWritten: number; path: string }> {
+    const fullPath = this.getSecurePath(remoteFilePath);
     const sftp = await this.getClient();
     try {
-      const fullPath = path.posix.join(this.config.remote_path, remoteFilePath);
       const remoteDir = path.posix.dirname(fullPath);
       await sftp.mkdir(remoteDir, true);
 
@@ -93,8 +107,8 @@ export class SftpProvider implements IStorageProvider {
   }
 
   async downloadStream(remoteFilePath: string): Promise<Readable> {
+    const fullPath = this.getSecurePath(remoteFilePath);
     const sftp = await this.getClient();
-    const fullPath = path.posix.join(this.config.remote_path, remoteFilePath);
     const passThroughStream = new (require('stream').PassThrough)();
     
     // SFTP get to stream
@@ -106,9 +120,9 @@ export class SftpProvider implements IStorageProvider {
   }
 
   async listBackups(directoryPath?: string): Promise<BackupFileInfo[]> {
+    const targetDir = directoryPath ? this.getSecurePath(directoryPath) : this.config.remote_path;
     const sftp = await this.getClient();
     try {
-      const targetDir = directoryPath ? path.posix.join(this.config.remote_path, directoryPath) : this.config.remote_path;
       const exists = await sftp.exists(targetDir);
       if (!exists) return [];
 
@@ -128,9 +142,9 @@ export class SftpProvider implements IStorageProvider {
   }
 
   async deleteFile(remoteFilePath: string): Promise<boolean> {
+    const fullPath = this.getSecurePath(remoteFilePath);
     const sftp = await this.getClient();
     try {
-      const fullPath = path.posix.join(this.config.remote_path, remoteFilePath);
       await sftp.delete(fullPath);
       return true;
     } catch {
