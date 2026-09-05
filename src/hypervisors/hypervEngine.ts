@@ -13,6 +13,7 @@
  */
 import { Readable, Transform } from 'stream';
 import crypto from 'crypto';
+import path from 'path';
 import { db, logActivity } from '../config/database';
 import { getStorageProvider } from '../storage/storageFactory';
 import { enforceRetention } from '../services/retentionService';
@@ -182,7 +183,10 @@ export class HyperVEngine {
 
     const totalDisks = Math.max(task.total_disks || 1, totalDisksHint || 1);
     const ext = task.compression === 'gzip' ? 'vhdx.gz' : (task.compression === 'none' ? 'vhdx' : 'vhdx.zst');
-    const finalFilename = filenameHint || `${task.vm_name}_disk${diskIndex}_${task.id}.${ext}`;
+
+    // Sentinel Security: Sanitize filenameHint to prevent path traversal
+    const safeFilenameHint = filenameHint ? path.basename(filenameHint) : undefined;
+    const finalFilename = safeFilenameHint || `${task.vm_name}_disk${diskIndex}_${task.id}.${ext}`;
 
     const storageProvider = getStorageProvider(storageTarget);
     const hash = crypto.createHash('sha256');
