@@ -1,4 +1,4 @@
-## 2025-02-28 - [Path Traversal in FTP & SFTP Storage Providers]
-**Vulnerability:** In `FtpProvider` and `SftpProvider`, remote paths for file operations were being created using `path.posix.join(this.config.remote_path, remoteFilePath)`. This allowed an attacker to supply a `remoteFilePath` containing `../` sequences or starting with a leading slash to construct absolute paths, allowing reads, writes, and deletions of arbitrary files outside the intended FTP/SFTP directory.
-**Learning:** `path.posix.join` is not safe for processing untrusted inputs when trying to enforce a directory jail because it happily concatenates `../` and handles absolute paths by overriding the base path entirely.
-**Prevention:** Always implement a strictly validated `getSecurePath` helper. Strip leading slashes from user input, resolve the combined path against a pseudo-root (like `/`), and rigorously ensure the resulting path starts with the securely normalized base path directory string.
+## 2025-02-21 - Path Traversal in File Upload Headers
+**Vulnerability:** The HTTP header `x-backup-filename` was read directly and passed to the backend storage engines without being sanitized, allowing an attacker to spoof the filename with directory traversals (e.g., `../../../etc/passwd`).
+**Learning:** Even internal API endpoints intended for agent use must treat HTTP headers as strictly untrusted user input, especially when used to assemble file paths on disk.
+**Prevention:** Always sanitize any filename derived from untrusted user input using `path.basename()` before combining it with base directories, ensuring no directory traversal tokens are accepted.
