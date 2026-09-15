@@ -19,6 +19,7 @@ import { HyperVEngine } from '../hypervisors/hypervEngine';
 import { getStorageProvider } from '../storage/storageFactory';
 import { encryptSecret } from '../utils/cryptoVault';
 import crypto from 'crypto';
+import path from 'path';
 
 export const hypervisorRouter = Router();
 const proxmoxEngine = new ProxmoxEngine();
@@ -113,7 +114,10 @@ hypervisorRouter.post(['/agent/upload/:taskId', '/agent/upload/:taskId/:diskInde
   const { taskId } = req.params;
   const diskIndex = parseInt(req.params.diskIndex || (req.headers['x-disk-index'] as string) || '0', 10);
   const totalDisks = parseInt((req.query.totalDisks as string) || (req.headers['x-total-disks'] as string) || '1', 10);
-  const filenameHint = req.headers['x-backup-filename'] as string | undefined;
+
+  // Sentinel Security: Sanitize user input filename from header to prevent path traversal
+  const rawFilename = req.headers['x-backup-filename'] as string | undefined;
+  const filenameHint = rawFilename ? path.basename(rawFilename) : undefined;
 
   const controllerInfo = {
     type: req.headers['x-controller-type'] as string | undefined,
