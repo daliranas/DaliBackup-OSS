@@ -19,6 +19,7 @@ import { HyperVEngine } from '../hypervisors/hypervEngine';
 import { getStorageProvider } from '../storage/storageFactory';
 import { encryptSecret } from '../utils/cryptoVault';
 import crypto from 'crypto';
+import path from 'path';
 
 export const hypervisorRouter = Router();
 const proxmoxEngine = new ProxmoxEngine();
@@ -168,7 +169,7 @@ hypervisorRouter.get(['/agent/download-restore/:taskId', '/agent/download-restor
     const downloadStream = await provider.downloadStream(targetFilePath);
 
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${targetFilePath}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${path.basename(targetFilePath).replace(/"/g, '')}"`);
     downloadStream.pipe(res);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
