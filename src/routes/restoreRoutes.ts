@@ -18,6 +18,7 @@ import { getStorageProvider } from '../storage/storageFactory';
 import { ProxmoxEngine } from '../hypervisors/proxmoxEngine';
 import { HyperVEngine } from '../hypervisors/hypervEngine';
 import { imapEngine } from '../mail/imapEngine';
+import path from 'path';
 
 export const restoreRouter = Router();
 const proxmoxEngine = new ProxmoxEngine();
@@ -56,7 +57,9 @@ restoreRouter.get('/:id/download', requireAuth, async (req: AuthenticatedRequest
     const provider = getStorageProvider(target);
     const downloadStream = await provider.downloadStream(point.file_path);
 
-    res.setHeader('Content-Disposition', `attachment; filename="${point.file_path.split('/').pop() || 'backup_archive.tar.gz'}"`);
+    // Sentinel Security: Extract basename to prevent directory structure leakage and sanitize quotes
+    const safeFilename = point.file_path ? path.basename(point.file_path).replace(/"/g, '') : 'backup_archive.tar.gz';
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
     res.setHeader('Content-Type', 'application/octet-stream');
 
     downloadStream.pipe(res);
