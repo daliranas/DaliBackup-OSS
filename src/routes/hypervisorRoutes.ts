@@ -19,6 +19,7 @@ import { HyperVEngine } from '../hypervisors/hypervEngine';
 import { getStorageProvider } from '../storage/storageFactory';
 import { encryptSecret } from '../utils/cryptoVault';
 import crypto from 'crypto';
+import path from 'path';
 
 export const hypervisorRouter = Router();
 const proxmoxEngine = new ProxmoxEngine();
@@ -168,7 +169,9 @@ hypervisorRouter.get(['/agent/download-restore/:taskId', '/agent/download-restor
     const downloadStream = await provider.downloadStream(targetFilePath);
 
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${targetFilePath}"`);
+    // Sentinel Security: Extract basename to prevent directory structure leakage and sanitize quotes
+    const safeFilename = targetFilePath ? path.basename(targetFilePath).replace(/"/g, '') : 'backup_archive';
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
     downloadStream.on('error', (err: Error) => res.destroy(err));
     res.once('close', () => downloadStream.destroy());
     downloadStream.pipe(res);

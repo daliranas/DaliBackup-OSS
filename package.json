@@ -1,6 +1,6 @@
 {
   "name": "dalibackup-oss",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "DaliBackup OSS - Lightweight Open Source Backup Solution for Proxmox & Hyper-V with NFS/SFTP/FTP Storage",
   "main": "dist/server.js",
   "scripts": {
