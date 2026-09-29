@@ -14,7 +14,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execFileSync } from 'child_process';
+import { generate } from 'selfsigned';
 import { db, logActivity } from './database';
 
 const SSL_DIR = path.join(process.cwd(), 'data/ssl');
@@ -33,7 +33,7 @@ export function clearSslCache(): void {
 /**
  * Récupère ou génère les certificats SSL natifs x509 (CN: DaliBackup, O: Daliranas)
  */
-export function getOrCreateSslCertificates(forceRegenerate = false): SslCredentials {
+export async function getOrCreateSslCertificates(forceRegenerate = false): Promise<SslCredentials> {
   if (!forceRegenerate && cachedSslCredentials) {
     return cachedSslCredentials;
   }
@@ -50,7 +50,7 @@ export function getOrCreateSslCertificates(forceRegenerate = false): SslCredenti
 
   if (settings?.ssl_mode === 'CUSTOM' && settings.ssl_cert && settings.ssl_key) {
     fs.writeFileSync(certPath, settings.ssl_cert, 'utf-8');
-    fs.writeFileSync(keyPath, settings.ssl_key, 'utf-8');
+    fs.writeFileSync(keyPath, settings.ssl_key, { mode: 0o600 });
     cachedSslCredentials = { cert: settings.ssl_cert, key: settings.ssl_key };
     return cachedSslCredentials;
   }
@@ -88,28 +88,19 @@ export function getOrCreateSslCertificates(forceRegenerate = false): SslCredenti
   console.log(`[SSL] Génération d'un certificat SSL auto-signé natif (CN: DaliBackup, O: Daliranas, SANs: ${sanString})...`);
 
   try {
-    const args = [
-      'req',
-      '-x509',
-      '-newkey',
-      'rsa:2048',
-      '-keyout',
-      keyPath,
-      '-out',
-      certPath,
-      '-days',
-      '3650',
-      '-nodes',
-      '-subj',
-      '/C=FR/ST=Hauts-de-France/L=Roubaix/O=Daliranas/OU=DaliBackup Security/CN=DaliBackup',
-      '-addext',
-      `subjectAltName=${sanString}`
-    ];
-
-    execFileSync('openssl', args, { stdio: 'pipe' });
-
-    const cert = fs.readFileSync(certPath, 'utf-8');
-    const key = fs.readFileSync(keyPath, 'utf-8');
+    const pems = await generate([
+      { name: 'commonName', value: 'DaliBackup' },
+      { name: 'organizationName', value: 'Daliranas' }
+    ], {
+      keySize: 2048, algorithm: 'sha256',
+      extensions: [{ name: 'subjectAltName', altNames: sanList.map(san =>
+        san.startsWith('IP:') ? { type: 7 as const, ip: san.slice(3) }
+          : { type: 2 as const, value: san.slice(4) }) }]
+    });
+    const cert = pems.cert;
+    const key = pems.private;
+    fs.writeFileSync(certPath, cert);
+    fs.writeFileSync(keyPath, key, { mode: 0o600 });
 
     // Sauvegarder dans la base SQLite
     db.prepare('UPDATE system_settings SET ssl_cert = ?, ssl_key = ? WHERE id = 1').run(cert, key);
@@ -118,7 +109,7 @@ export function getOrCreateSslCertificates(forceRegenerate = false): SslCredenti
     cachedSslCredentials = { cert, key };
     return cachedSslCredentials;
   } catch (err: any) {
-    console.error('[SSL] Erreur lors de la génération OpenSSL:', err.message);
+    console.error('[SSL] Erreur lors de la génération du certificat:', err.message);
     throw new Error(`Impossible de générer le certificat SSL: ${err.message}`);
   }
 }

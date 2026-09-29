@@ -59,6 +59,8 @@ restoreRouter.get('/:id/download', requireAuth, async (req: AuthenticatedRequest
     res.setHeader('Content-Disposition', `attachment; filename="${point.file_path.split('/').pop() || 'backup_archive.tar.gz'}"`);
     res.setHeader('Content-Type', 'application/octet-stream');
 
+    downloadStream.on('error', (err: Error) => res.destroy(err));
+    res.once('close', () => downloadStream.destroy());
     downloadStream.pipe(res);
   } catch (err: any) {
     res.status(500).json({ error: `Échec du téléchargement : ${err.message}` });
@@ -76,15 +78,23 @@ restoreRouter.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res:
   }
 
   const target = db.prepare('SELECT * FROM storage_targets WHERE id = ?').get(point.storage_target_id) as any;
+  if (!target) {
+    res.status(409).json({ error: 'Stockage introuvable : catalogue conservé.' });
+    return;
+  }
   if (target && point.file_path) {
     try {
       const provider = getStorageProvider(target);
-      await provider.deleteFile(point.file_path);
+      const disks = db.prepare('SELECT file_path FROM restore_point_disks WHERE restore_point_id = ?').all(id) as any[];
+      const paths = disks.length ? disks.map(disk => disk.file_path) : [point.file_path];
+      for (const file of paths) await provider.deleteFile(file);
     } catch (err: any) {
-      console.warn('[RestoreRoutes] Avertissement suppression fichier:', err.message);
+      res.status(502).json({ error: `Suppression incomplète, catalogue conservé : ${err.message}` });
+      return;
     }
   }
 
+  db.prepare('DELETE FROM restore_point_disks WHERE restore_point_id = ?').run(id);
   db.prepare('DELETE FROM restore_points WHERE id = ?').run(id);
   logActivity('WARNING', 'RestorePoints', `Point de restauration supprimé : ${id} (${point.vm_name})`);
 

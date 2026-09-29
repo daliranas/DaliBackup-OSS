@@ -169,6 +169,8 @@ hypervisorRouter.get(['/agent/download-restore/:taskId', '/agent/download-restor
 
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${targetFilePath}"`);
+    downloadStream.on('error', (err: Error) => res.destroy(err));
+    res.once('close', () => downloadStream.destroy());
     downloadStream.pipe(res);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

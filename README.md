@@ -1,5 +1,8 @@
 <div align="center">
 
+> Validation status and deployment limitations: [Operational readiness](docs/READINESS.md).
+> In particular, incremental Hyper-V RCT is not yet wired into the OSS worker end to end.
+
 # 🛡️ DaliBackup-OSS
 ### Sovereign, Lightweight Backup, Replication & Disaster Recovery Engine for Microsoft Hyper-V, Proxmox VE & IMAP
 

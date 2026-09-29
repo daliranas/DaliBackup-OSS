@@ -13,6 +13,7 @@
  */
 import SftpClient from 'ssh2-sftp-client';
 import path from 'path';
+import { remotePath } from './remotePath';
 import { Readable } from 'stream';
 import { IStorageProvider, StorageConfig, BackupFileInfo } from './storageInterface';
 
@@ -65,7 +66,7 @@ export class SftpProvider implements IStorageProvider {
   async uploadStream(remoteFilePath: string, readStream: Readable): Promise<{ bytesWritten: number; path: string }> {
     const sftp = await this.getClient();
     try {
-      const fullPath = path.posix.join(this.config.remote_path, remoteFilePath);
+      const fullPath = remotePath(this.config.remote_path, remoteFilePath);
       const remoteDir = path.posix.dirname(fullPath);
       await sftp.mkdir(remoteDir, true);
 
@@ -80,7 +81,7 @@ export class SftpProvider implements IStorageProvider {
   async uploadLocalFile(localFilePath: string, remoteFilePath: string): Promise<{ bytesWritten: number; path: string }> {
     const sftp = await this.getClient();
     try {
-      const fullPath = path.posix.join(this.config.remote_path, remoteFilePath);
+      const fullPath = remotePath(this.config.remote_path, remoteFilePath);
       const remoteDir = path.posix.dirname(fullPath);
       await sftp.mkdir(remoteDir, true);
 
@@ -94,13 +95,14 @@ export class SftpProvider implements IStorageProvider {
 
   async downloadStream(remoteFilePath: string): Promise<Readable> {
     const sftp = await this.getClient();
-    const fullPath = path.posix.join(this.config.remote_path, remoteFilePath);
+    const fullPath = remotePath(this.config.remote_path, remoteFilePath);
     const passThroughStream = new (require('stream').PassThrough)();
     
     // SFTP get to stream
-    sftp.get(fullPath, passThroughStream).finally(() => {
-      sftp.end();
-    });
+    passThroughStream.once('close', () => { void sftp.end().catch(() => {}); });
+    void sftp.get(fullPath, passThroughStream).catch((err: Error) => {
+      passThroughStream.destroy(err);
+    }).finally(() => sftp.end()).catch(() => {});
 
     return passThroughStream;
   }
@@ -108,7 +110,7 @@ export class SftpProvider implements IStorageProvider {
   async listBackups(directoryPath?: string): Promise<BackupFileInfo[]> {
     const sftp = await this.getClient();
     try {
-      const targetDir = directoryPath ? path.posix.join(this.config.remote_path, directoryPath) : this.config.remote_path;
+      const targetDir = remotePath(this.config.remote_path, directoryPath || '.');
       const exists = await sftp.exists(targetDir);
       if (!exists) return [];
 
@@ -130,11 +132,9 @@ export class SftpProvider implements IStorageProvider {
   async deleteFile(remoteFilePath: string): Promise<boolean> {
     const sftp = await this.getClient();
     try {
-      const fullPath = path.posix.join(this.config.remote_path, remoteFilePath);
+      const fullPath = remotePath(this.config.remote_path, remoteFilePath);
       await sftp.delete(fullPath);
       return true;
-    } catch {
-      return false;
     } finally {
       await sftp.end();
     }

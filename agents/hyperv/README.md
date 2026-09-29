@@ -1,5 +1,9 @@
 # 🪟 DaliBackup — Microsoft Hyper-V Native Agent (CLIENTS-HV-BACKUP-S3)
 
+> OSS deployment: use `DaliAgent-HyperV.ps1` or the corrected scheduled-task installers.
+> The legacy S3/RCT scripts described below target a different API and are not a working
+> incremental path for this OSS server. See [readiness and release gates](../../docs/READINESS.md).
+
 [![Platform](https://img.shields.io/badge/Hyper--V-Windows%20Server%202016%20%7C%202019%20%7C%202022%20%7C%202025-0078D4?logo=windows)](https://www.microsoft.com/windows-server)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue?logo=powershell)](https://microsoft.com/powershell)
 [![Compression](https://img.shields.io/badge/Compression-Zstandard%20(zstd)-blue)](#)

@@ -27,10 +27,10 @@ if (-not $isAdmin) {
 
 $taskName = "DaliBackup-HyperV-Daemon"
 $scriptDir = $PSScriptRoot
-$serviceScript = Join-Path $scriptDir "HyperVBackupService.ps1"
+$serviceScript = Join-Path $scriptDir "DaliAgent-HyperV.ps1"
 
 if (-not (Test-Path $serviceScript)) {
-    Write-Host "[ERREUR] HyperVBackupService.ps1 introuvable dans $scriptDir" -ForegroundColor Red
+    Write-Host "[ERREUR] DaliAgent-HyperV.ps1 introuvable dans $scriptDir" -ForegroundColor Red
     exit 1
 }
 
@@ -58,7 +58,7 @@ Write-Host "=== Installation du Démon DaliBackup en arrière-plan permanent ===
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
 
 # 3. Création de l'action PowerShell
-$psArgs = "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File `"$serviceScript`" -ApiUrl `"$ApiUrl`" -ApiToken `"$ApiToken`""
+$psArgs = "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File `"$serviceScript`" -ServerUrl `"$ApiUrl`" -ApiToken `"$ApiToken`" -Action worker"
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $psArgs -WorkingDirectory $scriptDir
 
 # 4. Déclencheur au démarrage de Windows (At Startup)

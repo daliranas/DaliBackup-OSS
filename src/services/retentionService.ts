@@ -54,7 +54,7 @@ export async function enforceRetention(jobId: string): Promise<{ prunedCount: nu
       const diskRows = db.prepare('SELECT file_path FROM restore_point_disks WHERE restore_point_id = ?').all(point.id) as any[];
       const filesToDelete = diskRows.length > 0 ? diskRows.map(r => r.file_path) : (point.file_path ? [point.file_path] : []);
 
-      let allDisksDeleted = true;
+      let allDisksDeleted = Boolean(target && filesToDelete.length > 0);
 
       if (target && filesToDelete.length > 0) {
         const provider = getStorageProvider(target);

@@ -90,7 +90,7 @@ app.get('/wizard', (req: Request, res: Response) => {
 });
 
 // Fallback SPA
-app.get('*', (req: Request, res: Response) => {
+app.get('/{*path}', (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
@@ -98,13 +98,14 @@ app.get('*', (req: Request, res: Response) => {
 scheduler.initScheduler();
 
 // Démarrage des serveurs selon la configuration SSL
+async function startServers(): Promise<void> {
 try {
   const settings = db.prepare('SELECT ssl_enabled, ssl_mode FROM system_settings WHERE id = 1').get() as any;
   const isSslActive = Boolean(settings?.ssl_enabled || process.env.SSL_ENABLED === 'true');
 
   if (isSslActive) {
     // 1. Démarrer le serveur HTTPS principal avec l'application
-    const sslCerts = getOrCreateSslCertificates();
+    const sslCerts = await getOrCreateSslCertificates();
     const httpsServer = https.createServer({
       key: sslCerts.key,
       cert: sslCerts.cert
@@ -141,3 +142,5 @@ try {
   logActivity('ERROR', 'System', `Erreur fatale au démarrage: ${err.message}`);
   process.exit(1);
 }
+}
+void startServers();

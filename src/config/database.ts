@@ -64,7 +64,7 @@ export function initDatabase(): void {
     CREATE TABLE IF NOT EXISTS storage_targets (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('NFS', 'SFTP', 'FTP')),
+      type TEXT NOT NULL CHECK (type IN ('NFS', 'SMB', 'SFTP', 'FTP', 'FTPS', 'S3')),
       host TEXT,
       port INTEGER,
       username TEXT,
@@ -76,6 +76,22 @@ export function initDatabase(): void {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Rebuild the legacy CHECK constraint without renaming the referenced table.
+  const storageSchema = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'storage_targets'").get() as { sql: string };
+  if (!storageSchema.sql.includes("'S3'")) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      db.exec('BEGIN IMMEDIATE');
+      db.exec(storageSchema.sql.replace('storage_targets', 'storage_targets_new')
+        .replace("'NFS', 'SFTP', 'FTP'", "'NFS', 'SMB', 'SFTP', 'FTP', 'FTPS', 'S3'"));
+      db.exec('INSERT INTO storage_targets_new SELECT * FROM storage_targets');
+      db.exec('DROP TABLE storage_targets');
+      db.exec('ALTER TABLE storage_targets_new RENAME TO storage_targets');
+      db.exec('COMMIT');
+    } catch (err) { db.exec('ROLLBACK'); throw err; }
+    finally { db.exec('PRAGMA foreign_keys = ON'); }
+  }
 
   // 4. Table Hyperviseurs Déclarés (Proxmox / Hyper-V)
   db.exec(`
