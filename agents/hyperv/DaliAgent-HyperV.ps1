@@ -120,13 +120,14 @@ function Process-BackupTask ($task) {
 
     $snapshotName = "DaliBkp_VSS_$taskId"
     $snapshotCreated = $false
+    $flattenedDisk = $null
 
     try {
         $vm = Get-VM -Name $vmName -ErrorAction Stop
 
         # 1. Extraction complète de la configuration matérielle de la VM
         Write-Host "[DaliBackup] Extraction des métadonnées complètes de '$vmName'..." -ForegroundColor Cyan
-        $hardDrives = Get-VMHardDiskDrive -VM $vm
+        $hardDrives = @(Get-VMHardDiskDrive -VM $vm)
         if (-not $hardDrives -or $hardDrives.Count -eq 0) {
             throw "Aucun disque virtuel trouvé pour la VM '$vmName'."
         }
@@ -186,10 +187,11 @@ function Process-BackupTask ($task) {
             $diskToRead = $activePath
 
             if ($activePath.ToLower().EndsWith(".avhdx")) {
-                $vhdInfo = Get-VHD -Path $activePath -ErrorAction SilentlyContinue
-                if ($vhdInfo -and $vhdInfo.ParentPath -and (Test-Path $vhdInfo.ParentPath)) {
-                    $diskToRead = $vhdInfo.ParentPath
-                }
+                # The pre-checkpoint disk is frozen. Flatten the entire chain;
+                # reading only its parent would omit the latest guest writes.
+                $flattenedDisk = Join-Path ([System.IO.Path]::GetTempPath()) ("DaliBackup-" + [guid]::NewGuid().ToString() + ".vhdx")
+                Convert-VHD -Path $activePath -DestinationPath $flattenedDisk -VHDType Dynamic -ErrorAction Stop
+                $diskToRead = $flattenedDisk
             }
 
             if (-not (Test-Path $diskToRead)) {
@@ -209,6 +211,10 @@ function Process-BackupTask ($task) {
             }
 
             $res = Stream-File-Gzip-Upload -sourceFilePath $diskToRead -uploadUrl $uploadUrl -token $ApiToken -filenameHeader $filenameHint -controllerInfo $controllerMeta
+            if ($flattenedDisk) {
+                Remove-Item -LiteralPath $flattenedDisk -ErrorAction Stop
+                $flattenedDisk = $null
+            }
             Write-Host "[DaliBackup] Disque #$diskIndex téléversé avec succès ! (SHA256: $($res.sha256))" -ForegroundColor Green
 
             $diskIndex++
@@ -226,6 +232,9 @@ function Process-BackupTask ($task) {
             }
         } catch {}
     } finally {
+        if ($flattenedDisk -and (Test-Path -LiteralPath $flattenedDisk)) {
+            Remove-Item -LiteralPath $flattenedDisk -ErrorAction SilentlyContinue
+        }
         if ($snapshotCreated) {
             Write-Host "[DaliBackup] Suppression du checkpoint temporaire '$snapshotName'..." -ForegroundColor Gray
             Get-VMSnapshot -VMName $vmName -Name $snapshotName -ErrorAction SilentlyContinue | Remove-VMSnapshot -ErrorAction SilentlyContinue
@@ -300,7 +309,7 @@ function Process-RestoreTask ($task) {
 
             $calculatedHash = [System.BitConverter]::ToString($sha256.Hash).Replace("-", "").ToLower()
             if ($disk.checksum_sha256 -and $disk.checksum_sha256 -ne "" -and $calculatedHash -ne $disk.checksum_sha256.ToLower()) {
-                Write-Host "[DaliBackup] [ATTENTION] Hash calculé ($calculatedHash) != hash attendu ($($disk.checksum_sha256)). Restauration poursuivie (Bypass actif)..." -ForegroundColor Yellow
+                throw "Intégrité SHA256 invalide pour le disque #$diskIndex. Restauration interrompue."
             } else {
                 Write-Host "[DaliBackup] Intégrité SHA256 validée pour le disque #$diskIndex ($calculatedHash) !" -ForegroundColor Green
             }

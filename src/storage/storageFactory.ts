@@ -16,6 +16,7 @@ import { IStorageProvider, StorageConfig } from './storageInterface';
 import { NfsProvider } from './nfsProvider';
 import { SftpProvider } from './sftpProvider';
 import { FtpProvider } from './ftpProvider';
+import { S3Provider } from './s3Provider';
 import { decryptSecret } from '../utils/cryptoVault';
 
 export function getStorageProvider(targetOrId: string | StorageConfig): IStorageProvider {
@@ -40,11 +41,15 @@ export function getStorageProvider(targetOrId: string | StorageConfig): IStorage
 
   switch (decryptedConfig.type) {
     case 'NFS':
+    case 'SMB': // OS-mounted SMB share (UNC on Windows).
       return new NfsProvider(decryptedConfig);
     case 'SFTP':
       return new SftpProvider(decryptedConfig);
     case 'FTP':
+    case 'FTPS':
       return new FtpProvider(decryptedConfig);
+    case 'S3':
+      return new S3Provider(decryptedConfig);
     default:
       throw new Error(`Type de stockage non supporté : ${(decryptedConfig as any).type}`);
   }

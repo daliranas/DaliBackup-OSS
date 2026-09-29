@@ -904,12 +904,13 @@ function closeModal(modalId) {
 function onStorageTypeChange() {
   const type = document.getElementById('storageType').value;
   const remoteFields = document.getElementById('remoteHostFields');
-  if (type === 'NFS') {
+  if (type === 'NFS' || type === 'SMB') {
     remoteFields?.classList.add('hidden');
   } else {
     remoteFields?.classList.remove('hidden');
-    document.getElementById('storagePort').value = type === 'SFTP' ? '22' : '21';
+    document.getElementById('storagePort').value = type === 'S3' ? '' : (type === 'SFTP' ? '22' : '21');
   }
+  document.getElementById('storagePort').disabled = type === 'S3';
 }
 
 function setCronPreset(preset) {

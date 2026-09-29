@@ -16,7 +16,7 @@ import { Readable } from 'stream';
 export interface StorageConfig {
   id: string;
   name: string;
-  type: 'NFS' | 'SFTP' | 'FTP';
+  type: 'NFS' | 'SMB' | 'SFTP' | 'FTP' | 'FTPS' | 'S3';
   host?: string;
   port?: number;
   username?: string;
