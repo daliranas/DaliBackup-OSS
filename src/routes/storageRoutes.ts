@@ -35,6 +35,11 @@ storageRouter.post('/', requireAuth, (req: AuthenticatedRequest, res: Response):
     return;
   }
 
+  if (!['NFS', 'SMB', 'SFTP', 'FTP', 'FTPS', 'S3'].includes(type)) {
+    res.status(400).json({ error: 'Type de stockage non supporté.' });
+    return;
+  }
+
   const id = `st-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
 
   if (is_default) {
@@ -89,6 +94,12 @@ storageRouter.delete('/:id', requireAuth, (req: AuthenticatedRequest, res: Respo
   const jobCount = db.prepare('SELECT COUNT(*) as count FROM backup_jobs WHERE storage_target_id = ?').get(id) as any;
   if (jobCount && jobCount.count > 0) {
     res.status(400).json({ error: `Impossible de supprimer : ${jobCount.count} job(s) utilisent cette cible.` });
+    return;
+  }
+
+  const points = db.prepare('SELECT COUNT(*) AS count FROM restore_points WHERE storage_target_id = ?').get(id) as any;
+  if (points.count > 0) {
+    res.status(409).json({ error: 'Des points de restauration utilisent encore ce stockage.' });
     return;
   }
 

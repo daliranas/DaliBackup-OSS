@@ -19,12 +19,12 @@ param (
 )
 
 $TaskName = "HyperV-CloudBackup-Service"
-$ScriptPath = "$PSScriptRoot\HyperVBackupService.ps1"
+$ScriptPath = "$PSScriptRoot\DaliAgent-HyperV.ps1"
 
 Write-Host "[*] Configuration du démarrage automatique au Boot de la machine..." -ForegroundColor Cyan
 
 # Action : Démarrage du script PowerShell en arrière-plan sans fenêtre
-$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ScriptPath`" -ApiUrl `"$ApiUrl`" -ApiToken `"$ApiToken`""
+$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ScriptPath`" -ServerUrl `"$ApiUrl`" -ApiToken `"$ApiToken`" -Action worker"
 
 # Déclencheur : Au démarrage du système (AtStartup / Boot)
 $Trigger = New-ScheduledTaskTrigger -AtStartup

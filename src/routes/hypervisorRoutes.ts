@@ -172,6 +172,8 @@ hypervisorRouter.get(['/agent/download-restore/:taskId', '/agent/download-restor
     // Sentinel Security: Extract basename to prevent directory structure leakage and sanitize quotes
     const safeFilename = targetFilePath ? path.basename(targetFilePath).replace(/"/g, '') : 'backup_archive';
     res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+    downloadStream.on('error', (err: Error) => res.destroy(err));
+    res.once('close', () => downloadStream.destroy());
     downloadStream.pipe(res);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

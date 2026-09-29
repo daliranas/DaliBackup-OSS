@@ -265,9 +265,9 @@ authRouter.post('/settings/regenerate-token', requireAuth, (req: AuthenticatedRe
 });
 
 // Régénérer le Certificat SSL Auto-signé (CN: DaliBackup, O: Daliranas)
-authRouter.post('/settings/regenerate-ssl', requireAuth, (req: AuthenticatedRequest, res: Response): void => {
+authRouter.post('/settings/regenerate-ssl', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { getOrCreateSslCertificates } = require('../config/sslManager');
-  const certs = getOrCreateSslCertificates(true);
+  const certs = await getOrCreateSslCertificates(true);
 
   res.json({
     success: true,

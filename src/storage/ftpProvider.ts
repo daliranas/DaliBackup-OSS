@@ -13,6 +13,7 @@
  */
 import * as ftp from 'basic-ftp';
 import path from 'path';
+import { remotePath } from './remotePath';
 import { Readable } from 'stream';
 import { IStorageProvider, StorageConfig, BackupFileInfo } from './storageInterface';
 
@@ -21,20 +22,6 @@ export class FtpProvider implements IStorageProvider {
 
   constructor(config: StorageConfig) {
     this.config = config;
-  }
-
-  private getSecurePath(remoteFilePath: string): string {
-    const safeRemotePath = remoteFilePath.replace(/^\/+/, '');
-    const fullPath = path.posix.join(this.config.remote_path, safeRemotePath);
-
-    const checkBase = path.posix.resolve('/', this.config.remote_path);
-    const checkFull = path.posix.resolve('/', fullPath);
-    const prefix = checkBase.endsWith('/') ? checkBase : checkBase + '/';
-
-    if (!checkFull.startsWith(prefix) && checkFull !== checkBase) {
-      throw new Error('Tentative de path traversal détectée : accès refusé.');
-    }
-    return fullPath;
   }
 
   private async getClient(): Promise<ftp.Client> {
@@ -46,7 +33,7 @@ export class FtpProvider implements IStorageProvider {
       port: this.config.port || 21,
       user: this.config.username || 'anonymous',
       password: this.config.password || '',
-      secure: false
+      secure: this.config.type === 'FTPS'
     });
 
     return client;
@@ -71,9 +58,9 @@ export class FtpProvider implements IStorageProvider {
   }
 
   async uploadStream(remoteFilePath: string, readStream: Readable): Promise<{ bytesWritten: number; path: string }> {
-    const fullPath = this.getSecurePath(remoteFilePath);
     const client = await this.getClient();
     try {
+      const fullPath = remotePath(this.config.remote_path, remoteFilePath);
       const remoteDir = path.posix.dirname(fullPath);
       await client.ensureDir(remoteDir);
 
@@ -86,9 +73,9 @@ export class FtpProvider implements IStorageProvider {
   }
 
   async uploadLocalFile(localFilePath: string, remoteFilePath: string): Promise<{ bytesWritten: number; path: string }> {
-    const fullPath = this.getSecurePath(remoteFilePath);
     const client = await this.getClient();
     try {
+      const fullPath = remotePath(this.config.remote_path, remoteFilePath);
       const remoteDir = path.posix.dirname(fullPath);
       await client.ensureDir(remoteDir);
 
@@ -101,11 +88,14 @@ export class FtpProvider implements IStorageProvider {
   }
 
   async downloadStream(remoteFilePath: string): Promise<Readable> {
-    const fullPath = this.getSecurePath(remoteFilePath);
     const client = await this.getClient();
+    const fullPath = remotePath(this.config.remote_path, remoteFilePath);
     const passThrough = new (require('stream').PassThrough)();
 
-    client.downloadTo(passThrough, fullPath).finally(() => {
+    passThrough.once('close', () => client.close());
+    client.downloadTo(passThrough, fullPath).catch((err: Error) => {
+      passThrough.destroy(err);
+    }).finally(() => {
       client.close();
     });
 
@@ -113,11 +103,10 @@ export class FtpProvider implements IStorageProvider {
   }
 
   async listBackups(directoryPath?: string): Promise<BackupFileInfo[]> {
-    const targetDir = directoryPath ? this.getSecurePath(directoryPath) : this.config.remote_path;
     const client = await this.getClient();
     try {
-      await client.ensureDir(targetDir);
-      const list = await client.list();
+      const targetDir = remotePath(this.config.remote_path, directoryPath || '.');
+      const list = await client.list(targetDir);
 
       return list
         .filter(item => item.isFile)
@@ -134,13 +123,11 @@ export class FtpProvider implements IStorageProvider {
   }
 
   async deleteFile(remoteFilePath: string): Promise<boolean> {
-    const fullPath = this.getSecurePath(remoteFilePath);
     const client = await this.getClient();
     try {
+      const fullPath = remotePath(this.config.remote_path, remoteFilePath);
       await client.remove(fullPath);
       return true;
-    } catch {
-      return false;
     } finally {
       client.close();
     }
