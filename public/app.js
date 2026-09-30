@@ -17,6 +17,11 @@ let systemConfig = {
   serverUrl: 'http://localhost:3000',
   agentToken: 'dalibkp_oss_secure_token'
 };
+let hypervJobGuests = [];
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
 
 // Initialisation au chargement
 document.addEventListener('DOMContentLoaded', async () => {
@@ -730,20 +735,82 @@ async function loadHypervisors() {
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <span class="px-2 py-0.5 rounded text-[10px] font-bold ${n.type === 'PROXMOX' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}">${n.type}</span>
-              <h4 class="font-bold text-slate-800 text-sm">${n.name}${n.local ? ' <span class="text-[10px] text-emerald-700 font-semibold">(ce serveur)</span>' : ''}</h4>
+              <h4 class="font-bold text-slate-800 text-sm">${escapeHtml(n.name)}${n.local ? ' <span class="text-[10px] text-emerald-700 font-semibold">(ce serveur)</span>' : ''}</h4>
             </div>
             <span class="px-2 py-0.5 ${n.status === 'OFFLINE' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'} text-[10px] font-bold rounded border">${n.status === 'OFFLINE' ? 'Hors ligne' : 'En ligne'}</span>
           </div>
-          <p class="text-xs text-slate-600"><i class="fa-solid fa-network-wired mr-1"></i> Hôte : <span class="font-mono">${n.local ? n.host : `${n.host}:${n.port}`}</span></p>
-          ${n.local ? `<p class="text-[11px] text-emerald-700 mt-1"><i class="fa-brands fa-windows mr-1"></i>Détection locale : ${n.vm_count} VM(s) trouvée(s)</p>` : ''}
+          <p class="text-xs text-slate-600"><i class="fa-solid fa-network-wired mr-1"></i> Hôte : <span class="font-mono">${escapeHtml(n.local ? n.host : `${n.host}:${n.port}`)}</span></p>
+          ${n.type === 'HYPERV' ? `
+            <p class="text-[11px] text-emerald-700 mt-1"><i class="fa-brands fa-windows mr-1"></i>${n.local ? 'Détection locale' : 'Inventaire agent'} : ${Number(n.vm_count) || 0} VM(s)</p>
+            <button type="button" data-hyperv-action="inventory" data-node-id="${escapeHtml(n.id)}" class="mt-3 px-3 py-1.5 rounded border border-blue-200 bg-blue-50 text-blue-800 text-xs font-semibold hover:bg-blue-100">Voir les VM et sauvegardes</button>
+            <div class="hidden mt-3 border-t pt-3 space-y-2" data-inventory-for="${escapeHtml(n.id)}"></div>
+          ` : ''}
           <p class="text-[11px] text-slate-400 mt-1">Dernier contact : ${new Date(n.last_seen).toLocaleString()}</p>
         </div>
       `).join('');
     } else {
       container.innerHTML = '<div class="col-span-2 text-center py-8 text-slate-400">Aucun hyperviseur enregistré.</div>';
     }
+    if (!container.dataset.hypervBound) {
+      container.addEventListener('click', async event => {
+        const button = event.target.closest('button[data-hyperv-action]');
+        if (!button) return;
+        const { hypervAction: action, nodeId, vmId } = button.dataset;
+        if (action === 'inventory') await loadHypervGuests(nodeId);
+        if (action === 'backups') await loadHypervBackups(nodeId, vmId);
+        if (action === 'create-job') await openHypervJobForGuest(nodeId, vmId);
+      });
+      container.dataset.hypervBound = 'true';
+    }
   } catch (err) {
     console.error('Erreur hyperviseurs:', err);
+  }
+}
+
+function hypervInventoryElement(nodeId) {
+  return [...document.querySelectorAll('[data-inventory-for]')].find(el => el.dataset.inventoryFor === nodeId);
+}
+
+async function loadHypervGuests(nodeId) {
+  const target = hypervInventoryElement(nodeId);
+  if (!target) return;
+  target.classList.remove('hidden');
+  target.innerHTML = '<p class="text-xs text-slate-500">Chargement des VM…</p>';
+  try {
+    const { guests } = await apiCall(`/api/hypervisors/hyperv/${encodeURIComponent(nodeId)}/guests`);
+    target.innerHTML = guests.length ? guests.map(vm => `
+      <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div><div class="font-semibold text-xs text-slate-800">${escapeHtml(vm.name)}</div><div class="font-mono text-[10px] text-slate-500">${escapeHtml(vm.id)}</div></div>
+          <span class="text-[10px] font-semibold ${vm.state === 'Running' ? 'text-emerald-700' : 'text-slate-600'}">${escapeHtml(vm.state)}</span>
+        </div>
+        <p class="text-[11px] text-slate-600 mt-2">${Number(vm.job_count) || 0} job(s) · ${Number(vm.backup_count) || 0} sauvegarde(s) terminée(s)${vm.last_backup ? ` · dernière : ${new Date(vm.last_backup).toLocaleString()}` : ''}</p>
+        <div class="flex flex-wrap gap-2 mt-2">
+          <button type="button" data-hyperv-action="backups" data-node-id="${escapeHtml(nodeId)}" data-vm-id="${escapeHtml(vm.id)}" class="text-[11px] text-blue-700 hover:underline">Voir les sauvegardes</button>
+          <button type="button" data-hyperv-action="create-job" data-node-id="${escapeHtml(nodeId)}" data-vm-id="${escapeHtml(vm.id)}" class="text-[11px] text-emerald-700 hover:underline">Créer un job</button>
+        </div>
+        <div class="hidden mt-2" data-backups-for="${escapeHtml(vm.id)}"></div>
+      </div>
+    `).join('') : '<p class="text-xs text-slate-500">Aucune VM remontée par cet hôte. Vérifie les droits Hyper-V ou le dernier rapport de l’agent.</p>';
+  } catch (err) {
+    target.innerHTML = `<p class="text-xs text-rose-700">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+async function loadHypervBackups(nodeId, vmId) {
+  const inventory = hypervInventoryElement(nodeId);
+  const target = [...(inventory?.querySelectorAll('[data-backups-for]') || [])].find(el => el.dataset.backupsFor === vmId);
+  if (!target) return;
+  target.classList.remove('hidden');
+  target.innerHTML = '<p class="text-[11px] text-slate-500">Chargement…</p>';
+  try {
+    const { points } = await apiCall(`/api/hypervisors/hyperv/${encodeURIComponent(nodeId)}/guests/${encodeURIComponent(vmId)}/backups`);
+    target.innerHTML = points.length ? `<div class="space-y-1">${points.map(point => `
+      <div class="text-[11px] border-l-2 ${point.status === 'COMPLETED' ? 'border-emerald-400' : 'border-amber-400'} pl-2">
+        ${new Date(point.created_at).toLocaleString()} · ${escapeHtml(point.status)} · ${escapeHtml(point.storage_name || 'Stockage inconnu')} · ${((Number(point.file_size_bytes) || 0) / 1048576).toFixed(1)} Mo
+      </div>`).join('')}</div>` : '<p class="text-[11px] text-slate-500">Aucune sauvegarde enregistrée pour cette VM.</p>';
+  } catch (err) {
+    target.innerHTML = `<p class="text-[11px] text-rose-700">${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -940,9 +1007,50 @@ async function loadLogs() {
 }
 
 // Modales & Formulaires
-function openNewJobModal() {
+async function openNewJobModal() {
   loadStorageOptions();
   document.getElementById('newJobModal')?.classList.remove('hidden');
+  await onHypervisorTypeChange();
+}
+
+async function openHypervJobForGuest(nodeId, vmId) {
+  document.getElementById('jobHypervisorType').value = 'HYPERV';
+  await openNewJobModal();
+  const index = hypervJobGuests.findIndex(guest => guest.nodeId === nodeId && guest.id === vmId);
+  if (index >= 0) {
+    document.getElementById('jobHypervGuestSelect').value = String(index);
+    selectHypervGuestForJob();
+  }
+}
+
+function selectHypervGuestForJob() {
+  const index = document.getElementById('jobHypervGuestSelect')?.value;
+  const guest = index === '' ? null : hypervJobGuests[Number(index)];
+  if (guest) {
+    document.getElementById('jobVmId').value = guest.id;
+    document.getElementById('jobVmName').value = guest.name;
+  }
+}
+
+async function loadHypervJobInventory() {
+  const select = document.getElementById('jobHypervGuestSelect');
+  const status = document.getElementById('jobHypervInventoryStatus');
+  if (!select) return;
+  status.textContent = 'Recherche des VM détectées…';
+  try {
+    const { nodes } = await apiCall('/api/hypervisors/nodes');
+    const hypervNodes = nodes.filter(node => node.type === 'HYPERV');
+    const results = await Promise.allSettled(hypervNodes.map(node => apiCall(`/api/hypervisors/hyperv/${encodeURIComponent(node.id)}/guests`)));
+    hypervJobGuests = results.flatMap((result, index) => result.status === 'fulfilled'
+      ? result.value.guests.map(guest => ({ ...guest, nodeId: hypervNodes[index].id, nodeName: hypervNodes[index].name })) : []);
+    select.innerHTML = '<option value="">Saisie manuelle</option>' + hypervJobGuests.map((guest, index) =>
+      `<option value="${index}">${escapeHtml(guest.name)} — ${escapeHtml(guest.nodeName)} (${escapeHtml(guest.state)})</option>`).join('');
+    status.textContent = hypervJobGuests.length ? `${hypervJobGuests.length} VM détectée(s). La sélection remplit l’ID et le nom.` : 'Aucune VM détectée. Saisie manuelle possible.';
+  } catch (err) {
+    hypervJobGuests = [];
+    select.innerHTML = '<option value="">Saisie manuelle</option>';
+    status.textContent = `Inventaire indisponible : ${err.message}`;
+  }
 }
 
 function openNewStorageModal() {
@@ -977,6 +1085,7 @@ async function onHypervisorTypeChange() {
   const tipText = document.getElementById('jobHypervisorTipText');
   const vmIdInput = document.getElementById('jobVmId');
   const vmNameInput = document.getElementById('jobVmName');
+  document.getElementById('jobHypervInventoryField')?.classList.toggle('hidden', type !== 'HYPERV');
 
   if (type === 'EMAIL_IMAP') {
     vmFields?.classList.add('hidden');
@@ -1005,9 +1114,10 @@ async function onHypervisorTypeChange() {
     mailFields?.classList.add('hidden');
 
     if (type === 'HYPERV') {
-      if (tipText) tipText.innerHTML = '💡 <strong>Microsoft Hyper-V :</strong> Renseignez le nom exact de la VM (ou son GUID). La sauvegarde capture les disques <code>.vhdx</code> à chaud via VSS Snapshot.';
+      if (tipText) tipText.innerHTML = '💡 <strong>Microsoft Hyper-V :</strong> Sélectionnez une VM détectée ou renseignez son GUID et son nom. La sauvegarde capture les disques <code>.vhdx</code> à chaud via VSS Snapshot.';
       if (vmIdInput) vmIdInput.placeholder = 'ex: SRV-APP01 ou Nom de la VM';
       if (vmNameInput) vmNameInput.placeholder = 'ex: SRV-APP01';
+      await loadHypervJobInventory();
     } else {
       if (tipText) tipText.innerHTML = '💡 <strong>Proxmox VE :</strong> L\'ID est le numéro numérique de la VM ou du CT (ex: <code>100</code>). Sauvegarde via <code>vzdump</code> snapshot.';
       if (vmIdInput) vmIdInput.placeholder = 'ex: 100';
@@ -1070,6 +1180,7 @@ async function handleCreateJob(e) {
 
   let vmId = '';
   let vmName = '';
+  let nodeId = null;
 
   if (type === 'EMAIL_IMAP') {
     const select = document.getElementById('jobMailSourceSelect');
@@ -1087,6 +1198,15 @@ async function handleCreateJob(e) {
       alert('Veuillez renseigner l\'ID et le nom de la VM / Conteneur.');
       return;
     }
+    if (type === 'HYPERV') {
+      const selected = document.getElementById('jobHypervGuestSelect')?.value;
+      const guest = selected === '' ? null : hypervJobGuests[Number(selected)];
+      if (guest) {
+        vmId = guest.id;
+        vmName = guest.name;
+        nodeId = guest.nodeId;
+      }
+    }
   }
 
   const payload = {
@@ -1095,6 +1215,7 @@ async function handleCreateJob(e) {
     storage_target_id: storageTargetId,
     vm_id: vmId,
     vm_name: vmName,
+    node_id: nodeId,
     schedule_cron: scheduleCron,
     compression: type === 'EMAIL_IMAP' ? 'gzip' : compression
   };

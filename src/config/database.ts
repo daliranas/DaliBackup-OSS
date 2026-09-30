@@ -110,6 +110,15 @@ export function initDatabase(): void {
       last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS hyperv_guests (
+      node_id TEXT NOT NULL,
+      vm_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      state TEXT NOT NULL,
+      last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (node_id, vm_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_hyperv_guests_vm ON hyperv_guests (vm_id);
   `);
 
   // 5. Table Sources E-mail IMAP

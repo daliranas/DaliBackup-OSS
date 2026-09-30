@@ -182,6 +182,30 @@ async function runApiE2ETests() {
   const nodeId = nodeRes.body.id;
   console.log('   ✅ POST /api/hypervisors/nodes : 200 OK (Nœud enregistré avec secrets chiffrés)');
 
+  const reportRes = await request(app)
+    .post('/api/hypervisors/hyperv/report')
+    .set('Authorization', `Bearer ${agentToken}`)
+    .send({ hostname: 'SRV-HYPERV-01', vms: [{ id: 'vm-web-101', name: 'SRV-WEBPROD-01', state: 'Running', sizeBytes: 1024 }] });
+  assert.strictEqual(reportRes.status, 200);
+  const inventoryRes = await request(app)
+    .get(`/api/hypervisors/hyperv/${nodeId}/guests`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.strictEqual(inventoryRes.status, 200);
+  assert.strictEqual(inventoryRes.body.guests[0].name, 'SRV-WEBPROD-01');
+  assert.strictEqual(inventoryRes.body.guests[0].backup_count, 0);
+  const emptyReportRes = await request(app)
+    .post('/api/hypervisors/hyperv/report')
+    .set('Authorization', `Bearer ${agentToken}`)
+    .send({ hostname: 'SRV-HYPERV-01', vms: [] });
+  assert.strictEqual(emptyReportRes.status, 200);
+  const emptyInventoryRes = await request(app)
+    .get(`/api/hypervisors/hyperv/${nodeId}/guests`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.strictEqual(emptyInventoryRes.body.guests.length, 0);
+  await request(app).post('/api/hypervisors/hyperv/report')
+    .set('Authorization', `Bearer ${agentToken}`)
+    .send({ hostname: 'SRV-HYPERV-01', vms: [{ id: 'vm-web-101', name: 'SRV-WEBPROD-01', state: 'Running', sizeBytes: 1024 }] });
+
   // Test 5: Création d un Job de Sauvegarde (POST /api/jobs)
   console.log('\n5. Test Création Job de Sauvegarde (POST /api/jobs)...');
   const jobRes = await request(app)
@@ -278,6 +302,15 @@ async function runApiE2ETests() {
   assert(Array.isArray(rpListRes.body.points) && rpListRes.body.points.length >= 1);
   const createdRp = rpListRes.body.points.find((p: any) => p.id === restorePointId);
   assert(createdRp && createdRp.status === 'COMPLETED');
+  const inventoriedBackupRes = await request(app)
+    .get(`/api/hypervisors/hyperv/${nodeId}/guests/vm-web-101/backups`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.strictEqual(inventoriedBackupRes.status, 200);
+  assert.strictEqual(inventoriedBackupRes.body.points[0].id, restorePointId);
+  const refreshedInventoryRes = await request(app)
+    .get(`/api/hypervisors/hyperv/${nodeId}/guests`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.strictEqual(refreshedInventoryRes.body.guests[0].backup_count, 1);
   console.log('   ✅ GET /api/restore-points : 200 OK (Point de restauration validé COMPLETED)');
 
   // Test 11: Ordre de Restauration PRA / Disaster Recovery (POST /api/restore-points/:id/restore)
