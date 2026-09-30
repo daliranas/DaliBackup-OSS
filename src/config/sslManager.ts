@@ -16,8 +16,11 @@ import path from 'path';
 import os from 'os';
 import { generate } from 'selfsigned';
 import { db, logActivity } from './database';
+import { dataDirectory } from './runtimePaths';
 
-const SSL_DIR = path.join(process.cwd(), 'data/ssl');
+const SSL_DIR = process.env.DALIBACKUP_DATA_DIR
+  ? path.join(dataDirectory, 'ssl')
+  : path.join(process.cwd(), 'data/ssl');
 
 export interface SslCredentials {
   cert: string;

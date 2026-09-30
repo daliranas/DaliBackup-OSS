@@ -1,0 +1,56 @@
+name: Attach Windows Server EXE to v1.1.2
+
+on:
+  push:
+    branches: ["release/v1.1.2"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-and-attach:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build the standalone Windows server
+        run: npm run build:server-exe
+
+      - name: Run the standalone executable without sidecar files
+        run: node tests/serverExeSmoke.cjs release-assets/DaliBackup-Server-v1.1.2-win-x64.exe
+
+      - name: Update release notes and checksums
+        shell: pwsh
+        run: |
+          $content = Get-Content CHANGELOG.md -Raw
+          $notes = [regex]::Match($content, '(?ms)^## v1\.1\.2\b.*?(?=^## v|\z)').Value
+          if (-not $notes) { throw 'v1.1.2 release notes not found in CHANGELOG.md' }
+          Set-Content -Path release-notes.md -Value $notes -Encoding utf8
+
+          $checksumPath = 'release-assets/SHA256SUMS.txt'
+          Invoke-WebRequest -Uri 'https://github.com/daliranas/DaliBackup-OSS/releases/download/v1.1.2/SHA256SUMS.txt' -OutFile $checksumPath
+          $existing = @(Get-Content $checksumPath | Where-Object { $_ -notmatch '  DaliBackup-Server-v1\.1\.2-win-x64\.exe$' })
+          $hash = (Get-FileHash 'release-assets/DaliBackup-Server-v1.1.2-win-x64.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $existing += "$hash  DaliBackup-Server-v1.1.2-win-x64.exe"
+          Set-Content -Path $checksumPath -Value $existing -Encoding utf8
+
+      - name: Update the existing v1.1.2 release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.2
+          name: DaliBackup-OSS v1.1.2 — Sovereign Backup Engine
+          body_path: release-notes.md
+          files: |
+            release-assets/DaliBackup-Server-v1.1.2-win-x64.exe
+            release-assets/SHA256SUMS.txt
+          overwrite_files: true
+          fail_on_unmatched_files: true

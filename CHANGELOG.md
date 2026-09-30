@@ -11,6 +11,9 @@ production use.
 - A single-file Windows Hyper-V agent executable in the release assets. It
   embeds the supported worker, installs its scheduled task and requires no
   adjacent PowerShell files. The source ZIP remains available.
+- A single-file Windows x64 server executable containing Node.js, the API and
+  the complete Web UI. Run it directly; `data/` persists beside the executable
+  and no Node.js installation or `node_modules` directory is required.
 - Automatic local Hyper-V detection when the DaliBackup server runs on a Windows
   Hyper-V host with permission to call `Get-VM`. The connected hypervisor list
   shows the local node and VM count without manual registration.
@@ -42,6 +45,8 @@ production use.
 The console checks GitHub for updates and reports them; it does not modify a
 running server or container automatically. Windows Hyper-V discovery still
 requires the server account to access the local Hyper-V PowerShell module.
+The Windows server executable is unsigned; verify its SHA-256 checksum before
+running it. Keep the `data/` directory when replacing the executable.
 
 ## v1.1.0 — 2026-09-29
 

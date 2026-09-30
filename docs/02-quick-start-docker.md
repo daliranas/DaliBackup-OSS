@@ -42,7 +42,7 @@ services:
       - ./data:/app/data
       - ./backups:/var/backups/dalibackup
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-k", "-f", "https://localhost:3443/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
