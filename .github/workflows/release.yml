@@ -78,6 +78,7 @@ jobs:
 
           # 1. Single-file Hyper-V executable and optional source package.
           mv release-assets/hyperv-exe/DaliBackup-HyperV-Agent.exe "release-assets/DaliBackup-HyperV-Agent-${VERSION}.exe"
+          rmdir release-assets/hyperv-exe
           zip -j "release-assets/dalibackup-hyperv-agents-${VERSION}.zip" agents/hyperv/*.ps1 agents/hyperv/config.example.json agents/hyperv/README.md
 
           # 2. Proxmox Hook Tarball

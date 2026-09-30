@@ -18,6 +18,7 @@ import { ProxmoxEngine } from '../hypervisors/proxmoxEngine';
 import { HyperVEngine } from '../hypervisors/hypervEngine';
 import { getStorageProvider } from '../storage/storageFactory';
 import { encryptSecret } from '../utils/cryptoVault';
+import { discoverLocalHyperV, LocalHyperVDiscoveryResult } from '../hypervisors/localHyperVDiscovery';
 import crypto from 'crypto';
 import path from 'path';
 
@@ -25,10 +26,51 @@ export const hypervisorRouter = Router();
 const proxmoxEngine = new ProxmoxEngine();
 const hypervEngine = new HyperVEngine();
 
-// Liste des nœuds hyperviseurs (sans secrets)
-hypervisorRouter.get('/nodes', requireAuth, (req: AuthenticatedRequest, res: Response): void => {
-  const nodes = db.prepare('SELECT id, name, type, host, port, status, last_seen, created_at FROM hypervisor_nodes ORDER BY name ASC').all();
-  res.json({ nodes });
+async function registerLocalHyperV(): Promise<LocalHyperVDiscoveryResult> {
+  const local = await discoverLocalHyperV();
+  if (!local.available) {
+    if (process.platform === 'win32') {
+      const localId = `hv-local-${crypto.createHash('sha256').update(local.hostname).digest('hex').slice(0, 12)}`;
+      db.prepare("UPDATE hypervisor_nodes SET status = 'OFFLINE' WHERE id = ?").run(localId);
+    }
+    return local;
+  }
+
+  const existing = db.prepare("SELECT id FROM hypervisor_nodes WHERE host = ? AND type = 'HYPERV'").get(local.hostname) as any;
+  if (existing) {
+    db.prepare("UPDATE hypervisor_nodes SET status = 'ONLINE', last_seen = CURRENT_TIMESTAMP WHERE id = ?").run(existing.id);
+  } else {
+    const id = `hv-local-${crypto.createHash('sha256').update(local.hostname).digest('hex').slice(0, 12)}`;
+    db.prepare(`
+      INSERT INTO hypervisor_nodes (id, name, type, host, port, status, last_seen)
+      VALUES (?, ?, 'HYPERV', ?, 0, 'ONLINE', CURRENT_TIMESTAMP)
+    `).run(id, `Hyper-V local (${local.hostname})`, local.hostname);
+    logActivity('SUCCESS', 'HyperVLocal', `Hyper-V local détecté automatiquement sur '${local.hostname}' (${local.vms.length} VM(s)).`);
+  }
+  return local;
+}
+
+// Liste des nœuds hyperviseurs (sans secrets), avec auto-détection locale Hyper-V.
+hypervisorRouter.get('/nodes', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const localHyperV = await registerLocalHyperV();
+  const nodes = db.prepare('SELECT id, name, type, host, port, status, last_seen, created_at FROM hypervisor_nodes ORDER BY name ASC').all() as any[];
+  const enrichedNodes = nodes.map(node => ({
+    ...node,
+    local: localHyperV.available && node.type === 'HYPERV' && node.host === localHyperV.hostname,
+    vm_count: localHyperV.available && node.type === 'HYPERV' && node.host === localHyperV.hostname ? localHyperV.vms.length : undefined
+  }));
+  res.json({ nodes: enrichedNodes, localHyperV: { available: localHyperV.available, reason: localHyperV.reason } });
+});
+
+// VMs de l'hyperviseur local, sans agent distant.
+hypervisorRouter.get('/hyperv/:nodeId/guests', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const node = db.prepare("SELECT id, host, type FROM hypervisor_nodes WHERE id = ? AND type = 'HYPERV'").get(req.params.nodeId) as any;
+  const local = await registerLocalHyperV();
+  if (!node || !local.available || node.host !== local.hostname) {
+    res.status(404).json({ error: 'Cet hôte Hyper-V local est indisponible ou nécessite son agent DaliBackup.' });
+    return;
+  }
+  res.json({ guests: local.vms });
 });
 
 // Ajouter un nœud Proxmox ou Hyper-V (secrets chiffrés au repos)

@@ -29,6 +29,7 @@ import { restoreRouter } from './routes/restoreRoutes';
 import { storageRouter } from './routes/storageRoutes';
 import { hypervisorRouter } from './routes/hypervisorRoutes';
 import { scheduler } from './scheduler/backupScheduler';
+import { updateRouter } from './routes/updateRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,6 +48,21 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// A single Express application is shared by both listeners.  Once SSL is
+// enabled, the HTTP listener must never serve the UI or API in clear text.
+// Keep this check dynamic so saving the setting takes effect immediately.
+app.use((req: Request, res: Response, next) => {
+  if ((req.socket as { encrypted?: boolean }).encrypted) return next();
+
+  const settings = db.prepare('SELECT ssl_enabled FROM system_settings WHERE id = 1').get() as any;
+  if (!settings?.ssl_enabled && process.env.SSL_ENABLED !== 'true') return next();
+
+  const host = req.hostname.includes(':') ? `[${req.hostname}]` : req.hostname;
+  const httpsPort = Number(SSL_PORT);
+  const port = httpsPort === 443 ? '' : `:${httpsPort}`;
+  return res.redirect(308, `https://${host}${port}${req.originalUrl}`);
+});
+
 // Fichiers statiques UI
 app.use(express.static(path.join(__dirname, '../public')));
 
@@ -59,6 +75,7 @@ app.use('/api/restore-points', restoreRouter);
 app.use('/api/storage-targets', storageRouter);
 app.use('/api/hypervisors', hypervisorRouter);
 app.use('/api/mail', mailRouter);
+app.use('/api/updates', updateRouter);
 
 let APP_VERSION = '1.0.0-oss';
 try {
@@ -97,46 +114,33 @@ app.get('/{*path}', (req: Request, res: Response) => {
 // Initialiser le planificateur de tâches
 scheduler.initScheduler();
 
-// Démarrage des serveurs selon la configuration SSL
+// HTTPS is always listening so switching SSL on from the settings UI can take
+// effect without a process restart.  When SSL is disabled, HTTP remains
+// available; when it is enabled, the middleware above upgrades every request.
 async function startServers(): Promise<void> {
 try {
   const settings = db.prepare('SELECT ssl_enabled, ssl_mode FROM system_settings WHERE id = 1').get() as any;
   const isSslActive = Boolean(settings?.ssl_enabled || process.env.SSL_ENABLED === 'true');
+  const sslCerts = await getOrCreateSslCertificates();
+  const httpsServer = https.createServer({
+    key: sslCerts.key,
+    cert: sslCerts.cert
+  }, app);
 
-  if (isSslActive) {
-    // 1. Démarrer le serveur HTTPS principal avec l'application
-    const sslCerts = await getOrCreateSslCertificates();
-    const httpsServer = https.createServer({
-      key: sslCerts.key,
-      cert: sslCerts.cert
-    }, app);
+  httpsServer.listen(Number(SSL_PORT), HOST, () => {
+    console.log(`====================================================`);
+    console.log(`🔐 DaliBackup-OSS HTTPS disponible sur https://${HOST}:${SSL_PORT}`);
+    console.log(`📜 Certificat actif : CN=DaliBackup, O=Daliranas`);
+    logActivity('SUCCESS', 'SSL', `Serveur DaliBackup-OSS HTTPS démarré sur le port ${SSL_PORT}`);
+  });
 
-    httpsServer.listen(Number(SSL_PORT), HOST, () => {
-      console.log(`====================================================`);
-      console.log(`🔐 DaliBackup-OSS HTTPS sécurisé sur https://${HOST}:${SSL_PORT}`);
-      console.log(`📜 Certificat actif : CN=DaliBackup, O=Daliranas`);
-      logActivity('SUCCESS', 'SSL', `Serveur DaliBackup-OSS HTTPS démarré sur le port ${SSL_PORT}`);
-    });
-
-    // 2. Démarrer également le serveur HTTP pour un accès direct fluide sans blocage de certificat
-    const httpServer = http.createServer(app);
-    httpServer.listen(Number(PORT), HOST, () => {
-      console.log(`🚀 DaliBackup-OSS HTTP actif sur http://${HOST}:${PORT}`);
-      console.log(`🔒 Mode Single-User actif | Base SQLite prête`);
-      console.log(`====================================================`);
-      logActivity('INFO', 'System', `Serveur DaliBackup-OSS HTTP démarré sur le port ${PORT}`);
-    });
-  } else {
-    // Mode HTTP standard sans SSL
-    const httpServer = http.createServer(app);
-    httpServer.listen(Number(PORT), HOST, () => {
-      console.log(`====================================================`);
-      console.log(`🚀 DaliBackup-OSS actif sur http://${HOST}:${PORT}`);
-      console.log(`🔒 Mode Single-User actif | Base SQLite prête`);
-      console.log(`====================================================`);
-      logActivity('INFO', 'System', `Serveur DaliBackup-OSS HTTP démarré sur le port ${PORT}`);
-    });
-  }
+  const httpServer = http.createServer(app);
+  httpServer.listen(Number(PORT), HOST, () => {
+    console.log(`🚀 DaliBackup-OSS HTTP actif sur http://${HOST}:${PORT}${isSslActive ? ' (redirection HTTPS activée)' : ''}`);
+    console.log(`🔒 Mode Single-User actif | Base SQLite prête`);
+    console.log(`====================================================`);
+    logActivity('INFO', 'System', `Serveur DaliBackup-OSS HTTP démarré sur le port ${PORT}`);
+  });
 } catch (err: any) {
   console.error('❌ [Serveur] Erreur fatale au démarrage:', err.message);
   logActivity('ERROR', 'System', `Erreur fatale au démarrage: ${err.message}`);

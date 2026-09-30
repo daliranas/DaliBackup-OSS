@@ -1,5 +1,48 @@
 # Changelog
 
+## v1.1.2 — 2026-09-30
+
+Patch release for the web console, local Hyper-V discovery, update visibility and
+dependency security. Review [operational readiness](docs/READINESS.md) before
+production use.
+
+### Added
+
+- A single-file Windows Hyper-V agent executable in the release assets. It
+  embeds the supported worker, installs its scheduled task and requires no
+  adjacent PowerShell files. The source ZIP remains available.
+- Automatic local Hyper-V detection when the DaliBackup server runs on a Windows
+  Hyper-V host with permission to call `Get-VM`. The connected hypervisor list
+  shows the local node and VM count without manual registration.
+- An authenticated update check in General Settings. It queries the latest
+  official GitHub release, compares versions and links to the release download.
+  GitHub responses are cached for 30 minutes; installation is administrator-led.
+
+### Fixed
+
+- With SSL enabled, HTTP now redirects the UI and API to HTTPS using status 308.
+  HTTPS is available before changing the setting, so activation takes effect
+  without restarting the server.
+- Updated transitive `brace-expansion` from 5.0.9 to 5.0.12, resolving the
+  high-severity denial-of-service advisories reported by `npm audit`.
+- Docker health checks now probe the HTTPS endpoint, and release packaging
+  removes the temporary artifact directory before generating SHA-256 checksums.
+- Added an HTTP-to-HTTPS smoke check and a GitHub release comparison/cache test.
+
+### Upgrade
+
+1. Back up `data/dalibackup.db`, `.env`, SSL keys and backup repositories.
+2. Download the server archive and `SHA256SUMS.txt` from the official v1.1.2
+   GitHub release and verify the archive checksum.
+3. Stop the server, replace application files while preserving `data/`, `.env`
+   and mounted repositories, then run `npm ci` and start the server again.
+4. For Docker, pull the new image and recreate the container with the same
+   persistent volumes. Do not replace the database or backup volumes.
+
+The console checks GitHub for updates and reports them; it does not modify a
+running server or container automatically. Windows Hyper-V discovery still
+requires the server account to access the local Hyper-V PowerShell module.
+
 ## v1.1.0 — 2026-09-29
 
 Upgrade focused on storage reliability, cross-platform startup and restoration safety.
@@ -8,9 +51,6 @@ This release does not certify every backup target for production; see
 
 ### Added
 
-- A self-contained Windows `.exe` for the supported Hyper-V worker. It embeds
-  the agent, installs its scheduled task itself and is published with releases;
-  the PowerShell source package remains available for auditing and custom use.
 - S3-compatible storage using the AWS SDK: multipart upload, streaming download,
   paginated listing and deletion, with configurable endpoint and region.
 - SMB storage through an OS-mounted share or a Windows UNC path.

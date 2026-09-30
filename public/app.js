@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Mettre à jour dynamiquement la version affichée dans le footer
   updateAppVersion();
+  setInterval(() => { if (authToken) loadUpdateStatus(); }, 6 * 60 * 60 * 1000);
 
   // 1. Vérifier si le Setup Wizard initial est requis
   const setupNeeded = await checkSetupStatus();
@@ -273,6 +274,11 @@ async function handleCompleteSetup(e) {
     systemConfig.serverUrl = payload.server_url;
     updateAgentSnippets();
 
+    if (payload.ssl_enabled && window.location.protocol !== 'https:') {
+      redirectToHttps(payload.server_url);
+      return;
+    }
+
     document.getElementById('setupWizardScreen')?.remove();
     window.history.replaceState({}, document.title, '/');
     hideLogin();
@@ -291,6 +297,18 @@ function updateAgentSnippets() {
   if (el) {
     el.textContent = `.\\DaliAgent-HyperV.ps1 -ServerUrl "${systemConfig.serverUrl}" -ApiToken "${systemConfig.agentToken}"`;
   }
+}
+
+function redirectToHttps(serverUrl) {
+  const target = new URL(serverUrl || window.location.href, window.location.href);
+  target.protocol = 'https:';
+
+  // A local HTTP installation normally uses 3000/3443.  Keep an explicitly
+  // configured HTTPS port (including the standard 443) unchanged.
+  if (target.port === '3000') target.port = '3443';
+  target.pathname = '/';
+  target.search = '';
+  window.location.replace(target.toString());
 }
 
 async function updateAppVersion() {
@@ -363,6 +381,7 @@ function hideLogin() {
   document.getElementById('loginScreen')?.classList.add('hidden');
   document.getElementById('setupWizardScreen')?.classList.add('hidden');
   document.getElementById('appContainer')?.classList.remove('hidden');
+  loadUpdateStatus();
 }
 
 function logout() {
@@ -399,7 +418,39 @@ function switchTab(tabId) {
   if (tabId === 'hypervisors') loadHypervisors();
   if (tabId === 'mail') loadMailSources();
   if (tabId === 'logs') loadLogs();
-  if (tabId === 'settings') loadSystemSettings();
+  if (tabId === 'settings') {
+    loadSystemSettings();
+    loadUpdateStatus();
+  }
+}
+
+async function loadUpdateStatus(force = false) {
+  const statusText = document.getElementById('updateStatusText');
+  const badge = document.getElementById('updateAvailableBadge');
+  const releaseLink = document.getElementById('updateReleaseLink');
+  if (!statusText || !authToken) return;
+
+  if (force) statusText.textContent = 'Vérification de GitHub en cours…';
+  try {
+    const status = await apiCall(`/api/updates/status${force ? '?refresh=1' : ''}`);
+    badge?.classList.toggle('hidden', !status.updateAvailable);
+    document.getElementById('ribbonUpdateBadge')?.classList.toggle('hidden', !status.updateAvailable);
+    document.getElementById('sideUpdateBadge')?.classList.toggle('hidden', !status.updateAvailable);
+    if (status.updateAvailable) {
+      statusText.textContent = `Version installée : ${status.currentVersion}. Version disponible : ${status.latestVersion}.`;
+      releaseLink.textContent = 'Télécharger la mise à jour et consulter les instructions';
+    } else if (status.currentVersion !== status.latestVersion) {
+      statusText.textContent = `Version installée : ${status.currentVersion}. Dernière release publiée : ${status.latestVersion}.`;
+      releaseLink.textContent = 'Voir la dernière release sur GitHub';
+    } else {
+      statusText.textContent = `DaliBackup ${status.currentVersion} est à jour (dernière release : ${status.latestVersion}).`;
+      releaseLink.textContent = 'Voir la release sur GitHub';
+    }
+    releaseLink.href = status.releaseUrl;
+  } catch (error) {
+    statusText.textContent = error.message;
+    badge?.classList.add('hidden');
+  }
 }
 
 function loadAllData() {
@@ -679,11 +730,12 @@ async function loadHypervisors() {
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <span class="px-2 py-0.5 rounded text-[10px] font-bold ${n.type === 'PROXMOX' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}">${n.type}</span>
-              <h4 class="font-bold text-slate-800 text-sm">${n.name}</h4>
+              <h4 class="font-bold text-slate-800 text-sm">${n.name}${n.local ? ' <span class="text-[10px] text-emerald-700 font-semibold">(ce serveur)</span>' : ''}</h4>
             </div>
-            <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded border border-emerald-200">En ligne</span>
+            <span class="px-2 py-0.5 ${n.status === 'OFFLINE' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'} text-[10px] font-bold rounded border">${n.status === 'OFFLINE' ? 'Hors ligne' : 'En ligne'}</span>
           </div>
-          <p class="text-xs text-slate-600"><i class="fa-solid fa-network-wired mr-1"></i> Hôte : <span class="font-mono">${n.host}:${n.port}</span></p>
+          <p class="text-xs text-slate-600"><i class="fa-solid fa-network-wired mr-1"></i> Hôte : <span class="font-mono">${n.local ? n.host : `${n.host}:${n.port}`}</span></p>
+          ${n.local ? `<p class="text-[11px] text-emerald-700 mt-1"><i class="fa-brands fa-windows mr-1"></i>Détection locale : ${n.vm_count} VM(s) trouvée(s)</p>` : ''}
           <p class="text-[11px] text-slate-400 mt-1">Dernier contact : ${new Date(n.last_seen).toLocaleString()}</p>
         </div>
       `).join('');
@@ -1213,6 +1265,10 @@ async function handleSaveGlobalSettings(e) {
     systemConfig.serverUrl = payload.server_url;
     updateAgentSnippets();
     document.getElementById('headerUsername').textContent = payload.username;
+    if (payload.ssl_enabled && window.location.protocol !== 'https:') {
+      redirectToHttps(payload.server_url);
+      return;
+    }
     loadSystemSettings();
   } catch (err) {
     alert(`Erreur : ${err.message}`);

@@ -27,7 +27,7 @@ For **Sysadmins, MSPs, DevOps, and Homelabers**, it provides backup workflows fo
 
 ## 📑 Table of Contents
 
-- [v1.1.0 scope and limitations](#v110-scope-and-limitations)
+- [Current scope and limitations](#current-scope-and-limitations)
 
 - [Why DaliBackup-OSS?](#-why-dalibackup-oss)
 - [Feature Comparison (vs. Veeam & Proxmox Backup Server)](#-feature-comparison)
@@ -45,11 +45,12 @@ For **Sysadmins, MSPs, DevOps, and Homelabers**, it provides backup workflows fo
 
 ---
 
-## v1.1.0 scope and limitations
+## Current scope and limitations
 
 See the [changelog and upgrade instructions](CHANGELOG.md) and
 [readiness report](docs/READINESS.md). This upgrade focuses on storage reliability,
-S3, mounted SMB, explicit FTPS, safe restoration and cross-platform startup.
+S3, mounted SMB, explicit FTPS, safe restoration, cross-platform startup, and
+the v1.1.2 SSL, update-check and Hyper-V discovery patches.
 
 - CI tests the server on Windows, Linux and macOS with Node.js 22/24.
 - Docker, VM and bare-metal installation paths are available. LXC deployments
@@ -233,6 +234,16 @@ persistent database and backup paths, then run `npm start`. Complete initial set
 on a trusted network. Configure trusted TLS before connecting remote agents.
 Back up the database, configuration, encryption material and repositories before
 upgrades; keep a matching application/database snapshot for rollback.
+
+### GitHub release updates
+
+After login, **Settings → Mises à jour GitHub** checks the latest official
+release and displays its version and download link. The server caches GitHub
+responses for 30 minutes. Updates are installed by the administrator after
+backing up persistent data and stopping the server; the application does not
+replace its own binaries or restart Docker containers. Use `SHA256SUMS.txt` from
+the release to verify downloaded archives. Docker installations use the
+corresponding image and keep the same mounted `data` and backup directories.
 
 ## 💻 Hyper-V Agent Deployment (Windows)
 
