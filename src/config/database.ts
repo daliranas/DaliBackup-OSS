@@ -16,8 +16,9 @@ import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { dataDirectory } from './runtimePaths';
 
-const dbPath = process.env.DATABASE_FILE || path.join(__dirname, '../../data/dalibackup.db');
+const dbPath = process.env.DATABASE_FILE || path.join(dataDirectory, 'dalibackup.db');
 const dbDir = path.dirname(dbPath);
 
 if (!fs.existsSync(dbDir)) {
@@ -337,7 +338,7 @@ export function initDatabase(): void {
   // Création de la cible locale par défaut si vide
   const checkStorage = db.prepare('SELECT id FROM storage_targets LIMIT 1').get() as any;
   if (!checkStorage) {
-    const defaultLocalPath = process.env.DEFAULT_LOCAL_STORAGE_PATH || path.join(__dirname, '../../data/backups');
+    const defaultLocalPath = process.env.DEFAULT_LOCAL_STORAGE_PATH || path.join(dataDirectory, 'backups');
     try {
       if (!fs.existsSync(defaultLocalPath)) {
         fs.mkdirSync(defaultLocalPath, { recursive: true });
