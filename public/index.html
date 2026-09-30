@@ -375,6 +375,10 @@
         <i class="fa-solid fa-network-wired text-base text-slate-600 mb-1"></i>
         <span>Hyperviseurs</span>
       </button>
+      <button onclick="switchTab('sources')" id="ribbon-sources" class="dali-ribbon-btn">
+        <i class="fa-solid fa-folder-tree text-base text-slate-600 mb-1"></i>
+        <span>Bases &amp; Dossiers</span>
+      </button>
       <button onclick="switchTab('mail')" id="ribbon-mail" class="dali-ribbon-btn">
         <i class="fa-solid fa-envelope text-base text-slate-600 mb-1"></i>
         <span>Boîtes Mail (IMAP)</span>
@@ -395,48 +399,13 @@
       
       <!-- SIDEBAR -->
       <aside class="w-64 bg-white border-r border-slate-200 flex flex-col p-3 gap-1 shrink-0 overflow-y-auto">
-        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">Navigation</div>
-        <button onclick="switchTab('dashboard')" class="dali-sidebar-item active" id="side-dashboard">
-          <i class="fa-solid fa-gauge w-4 text-center"></i>
-          <span>Tableau de bord</span>
-        </button>
-        <button onclick="switchTab('jobs')" class="dali-sidebar-item" id="side-jobs">
-          <i class="fa-solid fa-tasks w-4 text-center"></i>
-          <span>Gestion des Jobs</span>
-        </button>
-        <button onclick="switchTab('restore')" class="dali-sidebar-item" id="side-restore">
-          <i class="fa-solid fa-boxes-stacked w-4 text-center"></i>
-          <span>Restore Points</span>
-        </button>
-        
-        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mt-4 mb-1">Infrastructure</div>
-        <button onclick="switchTab('storage')" class="dali-sidebar-item" id="side-storage">
-          <i class="fa-solid fa-database w-4 text-center"></i>
-          <span>Stockages (NFS/SFTP/FTP)</span>
-        </button>
-        <button onclick="switchTab('hypervisors')" class="dali-sidebar-item" id="side-hypervisors">
-          <i class="fa-solid fa-layer-group w-4 text-center"></i>
-          <span>Proxmox &amp; Hyper-V</span>
-        </button>
-        <button onclick="switchTab('mail')" class="dali-sidebar-item" id="side-mail">
-          <i class="fa-solid fa-envelope w-4 text-center"></i>
-          <span>Boîtes Mail (IMAP)</span>
-        </button>
-
-        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mt-4 mb-1">Système</div>
-        <button onclick="switchTab('logs')" class="dali-sidebar-item" id="side-logs">
-          <i class="fa-solid fa-list-ul w-4 text-center"></i>
-          <span>Logs d'exécution</span>
-        </button>
-        <button onclick="switchTab('settings')" class="dali-sidebar-item" id="side-settings">
-          <i class="fa-solid fa-gear w-4 text-center"></i>
-          <span>Paramètres Compte</span><span id="sideUpdateBadge" class="hidden ml-auto rounded bg-emerald-100 px-1.5 text-[10px] text-emerald-800">Mise à jour</span>
-        </button>
+        <div id="sideContextTitle" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">Vue d'ensemble</div>
+        <nav id="sideContextMenu" aria-label="Sous-menu de la rubrique sélectionnée"></nav>
 
         <div class="mt-auto pt-4 border-t border-slate-100 text-[11px] text-slate-400 px-3">
           <div class="flex items-center justify-between">
             <span>Version OSS</span>
-            <span id="appFooterVersion" class="font-mono text-emerald-600 font-semibold">v1.1.2</span>
+            <span id="appFooterVersion" class="font-mono text-emerald-600 font-semibold">v1.1.3</span>
           </div>
         </div>
       </aside>
@@ -660,6 +629,19 @@
           </div>
         </section>
 
+        <!-- Sources bases de données et dossiers distants -->
+        <section id="tab-sources" class="space-y-5 hidden">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-xl font-bold text-slate-800">Sources de sauvegarde</h2>
+              <p class="text-xs text-slate-500">MySQL, PostgreSQL, MSSQL, FTP, FTPS, SFTP et dossiers SMB montés</p>
+            </div>
+            <button type="button" onclick="openNewSourceModal()" class="px-3.5 py-2 bg-[#008542] text-white rounded text-xs font-semibold">Ajouter une source</button>
+          </div>
+          <div class="p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900">Bases : dump complet compressé. Dossiers : archive complète initiale puis incréments des fichiers modifiés, avec manifeste des suppressions. Les chaînes sont conservées tant qu’un incrément en dépend.</div>
+          <div id="sourcesList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </section>
+
         <!-- 5.bis TAB: BOITES MAIL IMAP -->
         <section id="tab-mail" class="space-y-6 hidden">
           <div class="flex items-center justify-between">
@@ -866,9 +848,42 @@
     </div>
   </div>
 
+  <!-- MODAL: SOURCE BASE OU DOSSIER -->
+  <div id="newSourceModal" class="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-bold text-slate-800">Ajouter une source</h3>
+        <button type="button" onclick="closeModal('newSourceModal')" class="text-slate-400 hover:text-slate-600" aria-label="Fermer">✕</button>
+      </div>
+      <form id="createSourceForm" class="space-y-3 text-xs">
+        <div><label class="block font-semibold mb-1" for="sourceName">Nom</label><input id="sourceName" required class="w-full px-3 py-2 border rounded-lg" placeholder="ex: Base comptabilité ou fichiers clients"></div>
+        <div><label class="block font-semibold mb-1" for="sourceType">Type</label>
+          <select id="sourceType" onchange="onSourceTypeChange()" class="w-full px-3 py-2 border rounded-lg">
+            <option value="MYSQL">MySQL</option><option value="POSTGRES">PostgreSQL</option><option value="MSSQL">MSSQL</option>
+            <option value="FTP">FTP</option><option value="FTPS">FTPS</option><option value="SFTP">SFTP</option><option value="SMB">SMB (dossier monté)</option>
+          </select>
+        </div>
+        <div id="sourceHostFields" class="grid grid-cols-3 gap-2">
+          <div class="col-span-2"><label class="block font-semibold mb-1" for="sourceHost">Hôte</label><input id="sourceHost" class="w-full px-3 py-2 border rounded-lg" placeholder="hôte ou IP"></div>
+          <div><label class="block font-semibold mb-1" for="sourcePort">Port</label><input id="sourcePort" type="number" min="1" max="65535" class="w-full px-3 py-2 border rounded-lg"></div>
+        </div>
+        <div id="sourceCredentialFields" class="grid grid-cols-2 gap-2">
+          <div><label class="block font-semibold mb-1" for="sourceUsername">Utilisateur</label><input id="sourceUsername" autocomplete="username" class="w-full px-3 py-2 border rounded-lg"></div>
+          <div><label class="block font-semibold mb-1" for="sourcePassword">Mot de passe</label><input id="sourcePassword" type="password" autocomplete="new-password" class="w-full px-3 py-2 border rounded-lg"></div>
+        </div>
+        <div id="sourceKeyField" class="hidden"><label class="block font-semibold mb-1" for="sourcePrivateKey">Clé privée SFTP (optionnelle)</label><textarea id="sourcePrivateKey" class="w-full px-3 py-2 border rounded-lg" rows="3"></textarea></div>
+        <div id="sourceDatabaseField"><label class="block font-semibold mb-1" for="sourceDatabaseName">Nom de la base</label><input id="sourceDatabaseName" class="w-full px-3 py-2 border rounded-lg"></div>
+        <div id="sourcePathField" class="hidden"><label class="block font-semibold mb-1" for="sourcePath">Chemin source / dossier accessible</label><input id="sourcePath" class="w-full px-3 py-2 border rounded-lg" placeholder="/exports/site ou \\serveur\partage"></div>
+        <div id="sourceServerPathField" class="hidden"><label class="block font-semibold mb-1" for="sourceServerPath">Dossier de sauvegarde vu par SQL Server</label><input id="sourceServerPath" class="w-full px-3 py-2 border rounded-lg" placeholder="C:\SQLBackups ou chemin partagé"><p class="mt-1 text-slate-500">MSSQL écrit le .bak côté serveur ; le chemin ci-dessus doit correspondre au dossier accessible à DaliBackup.</p></div>
+        <p id="sourcePrerequisite" class="p-2 bg-amber-50 border border-amber-200 rounded text-amber-900"></p>
+        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeModal('newSourceModal')" class="px-4 py-2 bg-slate-100 rounded">Annuler</button><button type="submit" class="px-4 py-2 bg-[#008542] text-white rounded font-semibold">Enregistrer</button></div>
+      </form>
+    </div>
+  </div>
+
   <!-- MODAL: NOUVEAU JOB -->
   <div id="newJobModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-6">
+    <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
           <i class="fa-solid fa-plus-circle text-emerald-600"></i> Nouveau Job de Sauvegarde
@@ -891,6 +906,8 @@
               <option value="PROXMOX">Proxmox VE (vzdump)</option>
               <option value="HYPERV">Microsoft Hyper-V (VSS/VHDX)</option>
               <option value="EMAIL_IMAP">Boîte E-mail IMAP (.eml / tar.gz)</option>
+              <option value="DATABASE">Base de données (dump complet)</option>
+              <option value="FOLDER">Dossier distant (incrémental)</option>
             </select>
           </div>
           <div>
@@ -907,6 +924,14 @@
             <span id="jobHypervisorTipText">💡 <strong>Proxmox VE :</strong> L'ID est le numéro de VM ou CT (ex: <code>100</code>). La sauvegarde s'exécute via snapshot non-disruptif.</span>
           </div>
 
+          <div id="jobHypervInventoryField" class="hidden">
+            <label class="block font-semibold text-slate-700 mb-1" for="jobHypervGuestSelect">VM Hyper-V détectée</label>
+            <select id="jobHypervGuestSelect" onchange="selectHypervGuestForJob()" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <option value="">Saisie manuelle</option>
+            </select>
+            <p id="jobHypervInventoryStatus" class="text-[11px] text-slate-500 mt-1"></p>
+          </div>
+
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block font-semibold text-slate-700 mb-1">ID VM / Conteneur</label>
@@ -917,6 +942,12 @@
               <input type="text" id="jobVmName" placeholder="ex: srv-web-01" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
             </div>
           </div>
+        </div>
+
+        <div id="genericSourceFields" class="hidden space-y-2">
+          <label class="block font-semibold text-slate-700 mb-1" for="jobGenericSourceSelect">Source à sauvegarder</label>
+          <select id="jobGenericSourceSelect" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></select>
+          <p class="text-[11px] text-slate-500">Ajoutez d’abord la connexion dans « Bases &amp; Dossiers ».</p>
         </div>
 
         <!-- Mail-specific fields (IMAP) -->
@@ -947,7 +978,7 @@
         </div>
 
         <!-- Algorithme de compression et guide détaillé -->
-        <div>
+        <div id="jobCompressionField">
           <label class="block font-semibold text-slate-700 mb-1">Algorithme de Compression</label>
           <select id="jobCompression" onchange="onJobCompressionChange()" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
             <option value="zstd" selected>🚀 Zstandard (ZSTD) — Ultra-recommandé (Rapide &amp; Efficace)</option>

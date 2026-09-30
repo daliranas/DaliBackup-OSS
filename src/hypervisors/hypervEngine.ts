@@ -51,12 +51,33 @@ export class HyperVEngine {
         INSERT INTO hypervisor_nodes (id, name, type, host, status, last_seen)
         VALUES (?, ?, 'HYPERV', ?, 'ONLINE', CURRENT_TIMESTAMP)
       `).run(nodeId, `Hyper-V (${report.hostname})`, report.hostname);
+      node = { id: nodeId };
     } else {
       db.prepare(`
         UPDATE hypervisor_nodes 
         SET status = 'ONLINE', last_seen = CURRENT_TIMESTAMP 
         WHERE id = ?
       `).run(node.id);
+    }
+
+    db.exec('BEGIN');
+    try {
+      const upsert = db.prepare(`
+        INSERT INTO hyperv_guests (node_id, vm_id, name, state, last_seen)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(node_id, vm_id) DO UPDATE SET name = excluded.name, state = excluded.state, last_seen = CURRENT_TIMESTAMP
+      `);
+      for (const vm of report.vms) upsert.run(node.id, vm.id, vm.name, vm.state);
+      const ids = report.vms.map(vm => vm.id);
+      if (ids.length) {
+        db.prepare(`DELETE FROM hyperv_guests WHERE node_id = ? AND vm_id NOT IN (${ids.map(() => '?').join(',')})`).run(node.id, ...ids);
+      } else {
+        db.prepare('DELETE FROM hyperv_guests WHERE node_id = ?').run(node.id);
+      }
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
     }
 
     return { status: 'OK', registeredVms: report.vms.length };

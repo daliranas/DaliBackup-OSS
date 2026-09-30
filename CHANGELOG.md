@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.1.3 — 2026-09-30
+
+### Added
+
+- Hyper-V inventory now lists detected VMs, their state, jobs and backup history;
+  a discovered VM can be selected directly when creating a backup job. Local
+  `Get-VM` results and remote agent reports are saved in SQLite.
+- MySQL, PostgreSQL and MSSQL source jobs with compressed full dumps. The
+  corresponding vendor client must be installed on the DaliBackup server.
+- Recursive FTP, FTPS, SFTP and OS-mounted SMB folder sources with full and
+  incremental `.tar.gz` archives, deletion manifests, chain download and a
+  verified restore script for an empty directory.
+- Source configuration in the Web UI, encrypted stored credentials, connection
+  tests, scheduled execution and chain-aware retention.
+
+### Operational notes
+
+- Database dumps are complete, not WAL/binlog/log incremental backups. MSSQL
+  requires a server-side backup directory also readable by DaliBackup.
+- SMB uses the operating-system mount/UNC identity. Real-server acceptance and
+  isolated restore tests are required before production use.
+
+
 ## v1.1.2 — 2026-09-30
 
 Patch release for the web console, local Hyper-V discovery, update visibility and

@@ -16,6 +16,7 @@ import { db, logActivity } from '../config/database';
 import { ProxmoxEngine } from '../hypervisors/proxmoxEngine';
 import { HyperVEngine } from '../hypervisors/hypervEngine';
 import { imapEngine } from '../mail/imapEngine';
+import { runSourceBackup } from '../sources/sourceEngine';
 
 export class BackupScheduler {
   private activeJobs: Map<string, any> = new Map();
@@ -101,6 +102,8 @@ export class BackupScheduler {
             await this.proxmoxEngine.runProxmoxBackup(job.id);
           } else if (job.hypervisor_type === 'EMAIL_IMAP') {
             await this.imapEngine.runImapBackup(job.id);
+          } else if (job.hypervisor_type === 'DATABASE' || job.hypervisor_type === 'FOLDER') {
+            await runSourceBackup(job.id);
           } else {
             await this.hypervEngine.runHyperVBackup(job.id);
           }
@@ -131,6 +134,8 @@ export class BackupScheduler {
         return await this.proxmoxEngine.runProxmoxBackup(jobId);
       } else if (job.hypervisor_type === 'EMAIL_IMAP') {
         return await this.imapEngine.runImapBackup(jobId);
+      } else if (job.hypervisor_type === 'DATABASE' || job.hypervisor_type === 'FOLDER') {
+        return await runSourceBackup(jobId);
       } else {
         return await this.hypervEngine.runHyperVBackup(jobId);
       }

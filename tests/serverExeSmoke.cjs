@@ -64,7 +64,7 @@ async function main() {
 
     const health = await request(https, tlsPort, '/api/health');
     assert.equal(health.status, 200);
-    assert.equal(JSON.parse(health.body).version, '1.1.2-oss');
+    assert.equal(JSON.parse(health.body).version, `${require('../package.json').version}-oss`);
     const ui = await request(https, tlsPort, '/');
     assert.equal(ui.status, 200);
     assert.match(ui.body, /DaliBackup/);

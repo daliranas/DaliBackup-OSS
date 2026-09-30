@@ -17,6 +17,11 @@ let systemConfig = {
   serverUrl: 'http://localhost:3000',
   agentToken: 'dalibkp_oss_secure_token'
 };
+let hypervJobGuests = [];
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
 
 // Initialisation au chargement
 document.addEventListener('DOMContentLoaded', async () => {
@@ -27,6 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Mettre à jour dynamiquement la version affichée dans le footer
   updateAppVersion();
+  renderContextMenu('dashboard');
   setInterval(() => { if (authToken) loadUpdateStatus(); }, 6 * 60 * 60 * 1000);
 
   // 1. Vérifier si le Setup Wizard initial est requis
@@ -56,6 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('createJobForm')?.addEventListener('submit', handleCreateJob);
   document.getElementById('createStorageForm')?.addEventListener('submit', handleCreateStorage);
   document.getElementById('createHypervisorForm')?.addEventListener('submit', handleCreateHypervisor);
+  document.getElementById('createSourceForm')?.addEventListener('submit', handleCreateSource);
   document.getElementById('createMailForm')?.addEventListener('submit', handleCreateMailSource);
   document.getElementById('changePasswordForm')?.addEventListener('submit', handleChangePassword);
 });
@@ -391,31 +398,71 @@ function logout() {
 }
 
 // Navigation Tabs
+const contextMenus = {
+  dashboard: { title: "Vue d'ensemble", items: [['Indicateurs', 'statActiveJobs', 'fa-chart-pie'], ['Dernières exécutions', 'dashboardRecentJobsBody', 'fa-clock-rotate-left'], ['Actualiser', '@refresh', 'fa-rotate']] },
+  jobs: { title: 'Jobs de sauvegarde', items: [['Liste des jobs', 'jobsTableBody', 'fa-list-check'], ['Créer un job', '@job', 'fa-circle-plus'], ['Actualiser', '@refresh', 'fa-rotate']] },
+  restore: { title: 'Points de restauration', items: [['Tous les points', 'restorePointsTableBody', 'fa-boxes-stacked'], ['Actualiser', '@refresh', 'fa-rotate']] },
+  storage: { title: 'Cibles de stockage', items: [['Cibles configurées', 'storageTargetsList', 'fa-database'], ['Ajouter une cible', '@storage', 'fa-circle-plus'], ['Actualiser', '@refresh', 'fa-rotate']] },
+  hypervisors: { title: 'Hyperviseurs', items: [['Nœuds et machines', 'hypervisorsList', 'fa-server'], ['Déclarer Proxmox', '@hypervisor', 'fa-circle-plus'], ['Actualiser', '@refresh', 'fa-rotate']] },
+  sources: { title: 'Bases & dossiers', items: [['Sources enregistrées', 'sourcesList', 'fa-folder-tree'], ['Ajouter une source', '@source', 'fa-circle-plus'], ['Actualiser', '@refresh', 'fa-rotate']] },
+  mail: { title: 'Boîtes mail', items: [['Boîtes configurées', 'mailSourcesList', 'fa-envelope'], ['Ajouter une boîte', '@mail', 'fa-circle-plus'], ['Actualiser', '@refresh', 'fa-rotate']] },
+  logs: { title: 'Journaux', items: [['Événements', 'logsTableBody', 'fa-list-ul'], ['Actualiser', '@refresh', 'fa-rotate']] },
+  settings: { title: 'Paramètres', items: [['Mises à jour', 'updateStatusText', 'fa-cloud-arrow-down'], ['Réseau', 'settingServerUrl', 'fa-network-wired'], ['Stockage', 'settingDefaultStorage', 'fa-database'], ['Actualiser', '@refresh', 'fa-rotate']] }
+};
+
+function renderContextMenu(tabId) {
+  const config = contextMenus[tabId];
+  const menu = document.getElementById('sideContextMenu');
+  if (!config || !menu) return;
+  document.getElementById('sideContextTitle').textContent = config.title;
+  menu.replaceChildren(...config.items.map(([label, target, icon], index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `dali-sidebar-item w-full ${index === 0 ? 'active' : ''}`;
+    const glyph = document.createElement('i');
+    glyph.className = `fa-solid ${icon} w-4 text-center`;
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    button.append(glyph, caption);
+    button.addEventListener('click', () => {
+      menu.querySelectorAll('.dali-sidebar-item').forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+      if (target === '@refresh') return switchTab(tabId);
+      if (target === '@job') return openNewJobModal();
+      if (target === '@storage') return openNewStorageModal();
+      if (target === '@hypervisor') return openNewHypervisorModal();
+      if (target === '@source') return openNewSourceModal();
+      if (target === '@mail') return openNewMailModal();
+      document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return button;
+  }));
+}
+
 function switchTab(tabId) {
   currentTab = tabId;
-  const tabs = ['dashboard', 'jobs', 'restore', 'storage', 'hypervisors', 'mail', 'logs', 'settings'];
+  const tabs = ['dashboard', 'jobs', 'restore', 'storage', 'hypervisors', 'sources', 'mail', 'logs', 'settings'];
   
   tabs.forEach(t => {
     const el = document.getElementById(`tab-${t}`);
     const ribbonBtn = document.getElementById(`ribbon-${t}`);
-    const sideBtn = document.getElementById(`side-${t}`);
 
     if (t === tabId) {
       el?.classList.remove('hidden');
       ribbonBtn?.classList.add('active');
-      sideBtn?.classList.add('active');
     } else {
       el?.classList.add('hidden');
       ribbonBtn?.classList.remove('active');
-      sideBtn?.classList.remove('active');
     }
   });
+  renderContextMenu(tabId);
 
   if (tabId === 'dashboard') loadDashboardStats();
   if (tabId === 'jobs') loadJobs();
   if (tabId === 'restore') loadRestorePoints();
   if (tabId === 'storage') loadStorageTargets();
   if (tabId === 'hypervisors') loadHypervisors();
+  if (tabId === 'sources') loadSources();
   if (tabId === 'mail') loadMailSources();
   if (tabId === 'logs') loadLogs();
   if (tabId === 'settings') {
@@ -435,7 +482,6 @@ async function loadUpdateStatus(force = false) {
     const status = await apiCall(`/api/updates/status${force ? '?refresh=1' : ''}`);
     badge?.classList.toggle('hidden', !status.updateAvailable);
     document.getElementById('ribbonUpdateBadge')?.classList.toggle('hidden', !status.updateAvailable);
-    document.getElementById('sideUpdateBadge')?.classList.toggle('hidden', !status.updateAvailable);
     if (status.updateAvailable) {
       statusText.textContent = `Version installée : ${status.currentVersion}. Version disponible : ${status.latestVersion}.`;
       releaseLink.textContent = 'Télécharger la mise à jour et consulter les instructions';
@@ -476,9 +522,9 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   if (contentType.includes('application/json')) {
     data = await res.json();
   } else {
-    const text = await res.text();
-    if (!res.ok) throw new Error(text || `Erreur HTTP ${res.status}`);
-    return text;
+    await res.text();
+    if (endpoint.startsWith('/api/')) throw new Error(`API indisponible (${res.status}) : le serveur et l'interface doivent être mis à jour ensemble. Rechargez après redémarrage du serveur.`);
+    throw new Error(`Réponse serveur inattendue (${res.status}).`);
   }
 
   if (!res.ok) throw new Error(data.error || data.message || 'Une erreur est survenue');
@@ -593,32 +639,45 @@ async function loadRestorePoints() {
         const isMail = p.hypervisor_type === 'EMAIL_IMAP';
         const typeBadge = isMail 
           ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">EMAIL IMAP</span>'
-          : `<span class="px-2 py-0.5 rounded text-[10px] font-bold ${p.hypervisor_type === 'PROXMOX' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}">${p.hypervisor_type}</span>`;
+          : `<span class="px-2 py-0.5 rounded text-[10px] font-bold ${p.hypervisor_type === 'PROXMOX' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}">${escapeHtml(p.hypervisor_type)}</span>`;
 
         return `
           <tr class="hover:bg-slate-50 transition">
-            <td class="py-3 px-4 font-semibold text-slate-800">${p.vm_name} <span class="text-slate-400 font-mono text-[10px]">(${p.vm_id})</span></td>
+            <td class="py-3 px-4 font-semibold text-slate-800">${escapeHtml(p.vm_name)} <span class="text-slate-400 font-mono text-[10px]">(${escapeHtml(p.vm_id)})</span></td>
             <td class="py-3 px-4">${typeBadge}</td>
-            <td class="py-3 px-4 font-mono text-[11px] text-slate-600">${p.file_path}</td>
+            <td class="py-3 px-4 font-mono text-[11px] text-slate-600">${escapeHtml(p.file_path)}</td>
             <td class="py-3 px-4 font-mono text-slate-700">${(p.file_size_bytes / (1024 * 1024)).toFixed(1)} Mo</td>
-            <td class="py-3 px-4 text-slate-600">${p.storage_name || 'NFS'}</td>
+            <td class="py-3 px-4 text-slate-600">${escapeHtml(p.storage_name || 'NFS')}</td>
             <td class="py-3 px-4 text-slate-500">${new Date(p.created_at).toLocaleString()}</td>
             <td class="py-3 px-4 text-right space-x-1">
-              ${isMail ? `
-                <button onclick="downloadBackupArchive('${p.id}')" class="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-300 rounded text-[11px] font-semibold transition" title="Télécharger l'archive e-mails .tar.gz">
+              ${(isMail || p.hypervisor_type === 'DATABASE' || p.hypervisor_type === 'FOLDER') && p.status === 'COMPLETED' ? `
+                <button data-restore-action="download" data-point-id="${escapeHtml(p.id)}" class="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-300 rounded text-[11px] font-semibold transition" title="Télécharger l'archive">
                   <i class="fa-solid fa-download mr-1"></i> Télécharger
                 </button>
               ` : ''}
-              <button onclick="triggerRestore('${p.id}', '${p.vm_name}')" class="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-300 rounded text-[11px] font-semibold transition">
+              ${p.hypervisor_type === 'FOLDER' && p.status === 'COMPLETED' ? `<button data-restore-action="chain" data-point-id="${escapeHtml(p.id)}" class="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[11px]">Télécharger la chaîne</button>` : ''}
+              ${['DATABASE', 'FOLDER'].includes(p.hypervisor_type) ? '' : `<button data-restore-action="restore" data-point-id="${escapeHtml(p.id)}" data-vm-name="${escapeHtml(p.vm_name)}" class="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-300 rounded text-[11px] font-semibold transition">
                 <i class="fa-solid fa-rotate-left mr-1"></i> Restaurer
-              </button>
-              <button onclick="deleteRestorePoint('${p.id}')" class="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-300 rounded text-[11px] transition">
+              </button>`}
+              <button data-restore-action="delete" data-point-id="${escapeHtml(p.id)}" class="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-300 rounded text-[11px] transition">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </td>
           </tr>
         `;
       }).join('');
+      if (!tbody.dataset.actionsBound) {
+        tbody.addEventListener('click', event => {
+          const button = event.target.closest('button[data-restore-action]');
+          if (!button) return;
+          const { restoreAction: action, pointId, vmName } = button.dataset;
+          if (action === 'download') downloadBackupArchive(pointId);
+          if (action === 'chain') downloadSourceChain(pointId);
+          if (action === 'restore') triggerRestore(pointId, vmName);
+          if (action === 'delete') deleteRestorePoint(pointId);
+        });
+        tbody.dataset.actionsBound = 'true';
+      }
     } else {
       tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-400">Aucun point de restauration disponible</td></tr>';
     }
@@ -730,20 +789,82 @@ async function loadHypervisors() {
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <span class="px-2 py-0.5 rounded text-[10px] font-bold ${n.type === 'PROXMOX' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}">${n.type}</span>
-              <h4 class="font-bold text-slate-800 text-sm">${n.name}${n.local ? ' <span class="text-[10px] text-emerald-700 font-semibold">(ce serveur)</span>' : ''}</h4>
+              <h4 class="font-bold text-slate-800 text-sm">${escapeHtml(n.name)}${n.local ? ' <span class="text-[10px] text-emerald-700 font-semibold">(ce serveur)</span>' : ''}</h4>
             </div>
             <span class="px-2 py-0.5 ${n.status === 'OFFLINE' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'} text-[10px] font-bold rounded border">${n.status === 'OFFLINE' ? 'Hors ligne' : 'En ligne'}</span>
           </div>
-          <p class="text-xs text-slate-600"><i class="fa-solid fa-network-wired mr-1"></i> Hôte : <span class="font-mono">${n.local ? n.host : `${n.host}:${n.port}`}</span></p>
-          ${n.local ? `<p class="text-[11px] text-emerald-700 mt-1"><i class="fa-brands fa-windows mr-1"></i>Détection locale : ${n.vm_count} VM(s) trouvée(s)</p>` : ''}
+          <p class="text-xs text-slate-600"><i class="fa-solid fa-network-wired mr-1"></i> Hôte : <span class="font-mono">${escapeHtml(n.local ? n.host : `${n.host}:${n.port}`)}</span></p>
+          ${n.type === 'HYPERV' ? `
+            <p class="text-[11px] text-emerald-700 mt-1"><i class="fa-brands fa-windows mr-1"></i>${n.local ? 'Détection locale' : 'Inventaire agent'} : ${Number(n.vm_count) || 0} VM(s)</p>
+            <button type="button" data-hyperv-action="inventory" data-node-id="${escapeHtml(n.id)}" class="mt-3 px-3 py-1.5 rounded border border-blue-200 bg-blue-50 text-blue-800 text-xs font-semibold hover:bg-blue-100">Voir les VM et sauvegardes</button>
+            <div class="hidden mt-3 border-t pt-3 space-y-2" data-inventory-for="${escapeHtml(n.id)}"></div>
+          ` : ''}
           <p class="text-[11px] text-slate-400 mt-1">Dernier contact : ${new Date(n.last_seen).toLocaleString()}</p>
         </div>
       `).join('');
     } else {
       container.innerHTML = '<div class="col-span-2 text-center py-8 text-slate-400">Aucun hyperviseur enregistré.</div>';
     }
+    if (!container.dataset.hypervBound) {
+      container.addEventListener('click', async event => {
+        const button = event.target.closest('button[data-hyperv-action]');
+        if (!button) return;
+        const { hypervAction: action, nodeId, vmId } = button.dataset;
+        if (action === 'inventory') await loadHypervGuests(nodeId);
+        if (action === 'backups') await loadHypervBackups(nodeId, vmId);
+        if (action === 'create-job') await openHypervJobForGuest(nodeId, vmId);
+      });
+      container.dataset.hypervBound = 'true';
+    }
   } catch (err) {
     console.error('Erreur hyperviseurs:', err);
+  }
+}
+
+function hypervInventoryElement(nodeId) {
+  return [...document.querySelectorAll('[data-inventory-for]')].find(el => el.dataset.inventoryFor === nodeId);
+}
+
+async function loadHypervGuests(nodeId) {
+  const target = hypervInventoryElement(nodeId);
+  if (!target) return;
+  target.classList.remove('hidden');
+  target.innerHTML = '<p class="text-xs text-slate-500">Chargement des VM…</p>';
+  try {
+    const { guests } = await apiCall(`/api/hypervisors/hyperv/${encodeURIComponent(nodeId)}/guests`);
+    target.innerHTML = guests.length ? guests.map(vm => `
+      <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div><div class="font-semibold text-xs text-slate-800">${escapeHtml(vm.name)}</div><div class="font-mono text-[10px] text-slate-500">${escapeHtml(vm.id)}</div></div>
+          <span class="text-[10px] font-semibold ${vm.state === 'Running' ? 'text-emerald-700' : 'text-slate-600'}">${escapeHtml(vm.state)}</span>
+        </div>
+        <p class="text-[11px] text-slate-600 mt-2">${Number(vm.job_count) || 0} job(s) · ${Number(vm.backup_count) || 0} sauvegarde(s) terminée(s)${vm.last_backup ? ` · dernière : ${new Date(vm.last_backup).toLocaleString()}` : ''}</p>
+        <div class="flex flex-wrap gap-2 mt-2">
+          <button type="button" data-hyperv-action="backups" data-node-id="${escapeHtml(nodeId)}" data-vm-id="${escapeHtml(vm.id)}" class="text-[11px] text-blue-700 hover:underline">Voir les sauvegardes</button>
+          <button type="button" data-hyperv-action="create-job" data-node-id="${escapeHtml(nodeId)}" data-vm-id="${escapeHtml(vm.id)}" class="text-[11px] text-emerald-700 hover:underline">Créer un job</button>
+        </div>
+        <div class="hidden mt-2" data-backups-for="${escapeHtml(vm.id)}"></div>
+      </div>
+    `).join('') : '<p class="text-xs text-slate-500">Aucune VM remontée par cet hôte. Vérifie les droits Hyper-V ou le dernier rapport de l’agent.</p>';
+  } catch (err) {
+    target.innerHTML = `<p class="text-xs text-rose-700">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+async function loadHypervBackups(nodeId, vmId) {
+  const inventory = hypervInventoryElement(nodeId);
+  const target = [...(inventory?.querySelectorAll('[data-backups-for]') || [])].find(el => el.dataset.backupsFor === vmId);
+  if (!target) return;
+  target.classList.remove('hidden');
+  target.innerHTML = '<p class="text-[11px] text-slate-500">Chargement…</p>';
+  try {
+    const { points } = await apiCall(`/api/hypervisors/hyperv/${encodeURIComponent(nodeId)}/guests/${encodeURIComponent(vmId)}/backups`);
+    target.innerHTML = points.length ? `<div class="space-y-1">${points.map(point => `
+      <div class="text-[11px] border-l-2 ${point.status === 'COMPLETED' ? 'border-emerald-400' : 'border-amber-400'} pl-2">
+        ${new Date(point.created_at).toLocaleString()} · ${escapeHtml(point.status)} · ${escapeHtml(point.storage_name || 'Stockage inconnu')} · ${((Number(point.file_size_bytes) || 0) / 1048576).toFixed(1)} Mo
+      </div>`).join('')}</div>` : '<p class="text-[11px] text-slate-500">Aucune sauvegarde enregistrée pour cette VM.</p>';
+  } catch (err) {
+    target.innerHTML = `<p class="text-[11px] text-rose-700">${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -912,6 +1033,100 @@ async function downloadBackupArchive(restorePointId) {
   }
 }
 
+async function downloadSourceChain(restorePointId) {
+  try {
+    const { chain } = await apiCall(`/api/restore-points/${encodeURIComponent(restorePointId)}/chain`);
+    document.getElementById('sourceChainDialog')?.remove();
+    const dialog = document.createElement('div');
+    dialog.id = 'sourceChainDialog';
+    dialog.className = 'fixed inset-0 z-[60] bg-slate-900/60 flex items-center justify-center p-4';
+    dialog.innerHTML = `<div class="bg-white rounded-xl max-w-xl w-full p-5 max-h-[85vh] overflow-y-auto shadow-xl">
+      <div class="flex justify-between items-center"><h3 class="font-bold text-slate-800">Chaîne de restauration (${chain.length} archives)</h3><button type="button" data-close-chain class="text-slate-500">✕</button></div>
+      <p class="text-xs text-slate-600 my-3">Téléchargez chaque fichier dans cet ordre : base complète, puis incréments. Vérifiez leur SHA-256 avant reconstruction.</p>
+      <div class="space-y-2">${chain.map((point, index) => `<div class="p-2 border rounded text-xs">
+        <div class="flex justify-between gap-2"><span>${index + 1}. ${escapeHtml(point.file_path.split('/').pop())}</span><button type="button" data-chain-index="${index}" class="text-blue-700 font-semibold hover:underline">Télécharger</button></div>
+        <div class="font-mono text-[10px] text-slate-500 break-all">SHA-256 : ${escapeHtml(point.checksum_sha256)}</div>
+      </div>`).join('')}</div></div>`;
+    dialog.addEventListener('click', event => {
+      if (event.target.closest('[data-close-chain]')) { dialog.remove(); return; }
+      const button = event.target.closest('[data-chain-index]');
+      if (button) downloadBackupArchive(chain[Number(button.dataset.chainIndex)].id);
+    });
+    document.body.appendChild(dialog);
+  } catch (err) { alert(err.message); }
+}
+
+function openNewSourceModal() {
+  document.getElementById('newSourceModal')?.classList.remove('hidden');
+  onSourceTypeChange();
+}
+
+function onSourceTypeChange() {
+  const type = document.getElementById('sourceType').value;
+  const database = ['MYSQL', 'POSTGRES', 'MSSQL'].includes(type);
+  document.getElementById('sourceDatabaseField')?.classList.toggle('hidden', !database);
+  document.getElementById('sourcePathField')?.classList.toggle('hidden', !['FTP', 'FTPS', 'SFTP', 'SMB', 'MSSQL'].includes(type));
+  document.getElementById('sourceServerPathField')?.classList.toggle('hidden', type !== 'MSSQL');
+  document.getElementById('sourceHostFields')?.classList.toggle('hidden', type === 'SMB');
+  document.getElementById('sourceCredentialFields')?.classList.toggle('hidden', type === 'SMB');
+  document.getElementById('sourceKeyField')?.classList.toggle('hidden', type !== 'SFTP');
+  document.getElementById('sourcePrerequisite').textContent = database
+    ? `Prérequis sur le serveur DaliBackup : ${type === 'MYSQL' ? 'mysqldump' : type === 'POSTGRES' ? 'pg_dump' : 'sqlcmd'} installé et accessible. ${type === 'MSSQL' ? 'SQL Server doit pouvoir écrire dans le dossier indiqué et DaliBackup doit lire le même fichier.' : ''}`
+    : type === 'SMB' ? 'Le partage SMB doit être monté et lisible par le compte du serveur DaliBackup.' : 'La source doit être accessible en lecture ; les fichiers modifiés sont transférés et compressés.';
+}
+
+async function loadSources() {
+  const container = document.getElementById('sourcesList');
+  if (!container) return;
+  try {
+    const { sources } = await apiCall('/api/sources');
+    if (!Array.isArray(sources)) throw new Error('Réponse des sources invalide : vérifiez que le serveur est à jour.');
+    container.innerHTML = sources.length ? sources.map(source => `
+      <div class="dali-card p-4">
+        <div class="flex items-center justify-between gap-2"><div class="text-sm font-bold">${escapeHtml(source.name)}</div><span class="text-[10px] px-2 py-1 bg-slate-100 rounded">${escapeHtml(source.type)}</span></div>
+        <p class="text-xs text-slate-500 mt-2 break-all">${escapeHtml(source.database_name || source.source_path || '')}${source.host ? ` · ${escapeHtml(source.host)}` : ''}</p>
+        <div class="flex gap-3 mt-3 text-xs"><button type="button" data-source-action="job" data-source-id="${escapeHtml(source.id)}" data-source-type="${escapeHtml(source.type)}" class="text-emerald-700 hover:underline">Créer un job</button><button type="button" data-source-action="test" data-source-id="${escapeHtml(source.id)}" class="text-blue-700 hover:underline">Tester</button><button type="button" data-source-action="delete" data-source-id="${escapeHtml(source.id)}" class="text-rose-700 hover:underline">Supprimer</button></div>
+      </div>`).join('') : '<p class="text-sm text-slate-500">Aucune source configurée.</p>';
+    if (!container.dataset.bound) {
+      container.addEventListener('click', async event => {
+        const button = event.target.closest('button[data-source-action]');
+        if (!button) return;
+        try {
+          if (button.dataset.sourceAction === 'test') {
+            const result = await apiCall(`/api/sources/${encodeURIComponent(button.dataset.sourceId)}/test`, 'POST');
+            alert(result.message);
+          } else if (button.dataset.sourceAction === 'job') {
+            const database = ['MYSQL', 'POSTGRES', 'MSSQL'].includes(button.dataset.sourceType);
+            document.getElementById('jobHypervisorType').value = database ? 'DATABASE' : 'FOLDER';
+            await openNewJobModal();
+            document.getElementById('jobGenericSourceSelect').value = button.dataset.sourceId;
+          } else if (confirm('Supprimer cette source ?')) {
+            await apiCall(`/api/sources/${encodeURIComponent(button.dataset.sourceId)}`, 'DELETE');
+            loadSources();
+          }
+        } catch (err) { alert(err.message); }
+      });
+      container.dataset.bound = 'true';
+    }
+  } catch (err) { container.innerHTML = `<p class="text-sm text-rose-700">${escapeHtml(err.message)}</p>`; }
+}
+
+async function handleCreateSource(event) {
+  event.preventDefault();
+  const value = id => document.getElementById(id)?.value?.trim() || '';
+  try {
+    await apiCall('/api/sources', 'POST', {
+      name: value('sourceName'), type: value('sourceType'), host: value('sourceHost'), port: value('sourcePort') || null,
+      username: value('sourceType') === 'SMB' ? '' : value('sourceUsername'),
+      password: value('sourceType') === 'SMB' ? '' : value('sourcePassword'), private_key: value('sourcePrivateKey'),
+      database_name: value('sourceDatabaseName'), source_path: value('sourcePath'), server_backup_path: value('sourceServerPath')
+    });
+    closeModal('newSourceModal');
+    document.getElementById('createSourceForm')?.reset();
+    loadSources();
+  } catch (err) { alert(err.message); }
+}
+
 // 6. Logs
 async function loadLogs() {
   try {
@@ -940,9 +1155,50 @@ async function loadLogs() {
 }
 
 // Modales & Formulaires
-function openNewJobModal() {
+async function openNewJobModal() {
   loadStorageOptions();
   document.getElementById('newJobModal')?.classList.remove('hidden');
+  await onHypervisorTypeChange();
+}
+
+async function openHypervJobForGuest(nodeId, vmId) {
+  document.getElementById('jobHypervisorType').value = 'HYPERV';
+  await openNewJobModal();
+  const index = hypervJobGuests.findIndex(guest => guest.nodeId === nodeId && guest.id === vmId);
+  if (index >= 0) {
+    document.getElementById('jobHypervGuestSelect').value = String(index);
+    selectHypervGuestForJob();
+  }
+}
+
+function selectHypervGuestForJob() {
+  const index = document.getElementById('jobHypervGuestSelect')?.value;
+  const guest = index === '' ? null : hypervJobGuests[Number(index)];
+  if (guest) {
+    document.getElementById('jobVmId').value = guest.id;
+    document.getElementById('jobVmName').value = guest.name;
+  }
+}
+
+async function loadHypervJobInventory() {
+  const select = document.getElementById('jobHypervGuestSelect');
+  const status = document.getElementById('jobHypervInventoryStatus');
+  if (!select) return;
+  status.textContent = 'Recherche des VM détectées…';
+  try {
+    const { nodes } = await apiCall('/api/hypervisors/nodes');
+    const hypervNodes = nodes.filter(node => node.type === 'HYPERV');
+    const results = await Promise.allSettled(hypervNodes.map(node => apiCall(`/api/hypervisors/hyperv/${encodeURIComponent(node.id)}/guests`)));
+    hypervJobGuests = results.flatMap((result, index) => result.status === 'fulfilled'
+      ? result.value.guests.map(guest => ({ ...guest, nodeId: hypervNodes[index].id, nodeName: hypervNodes[index].name })) : []);
+    select.innerHTML = '<option value="">Saisie manuelle</option>' + hypervJobGuests.map((guest, index) =>
+      `<option value="${index}">${escapeHtml(guest.name)} — ${escapeHtml(guest.nodeName)} (${escapeHtml(guest.state)})</option>`).join('');
+    status.textContent = hypervJobGuests.length ? `${hypervJobGuests.length} VM détectée(s). La sélection remplit l’ID et le nom.` : 'Aucune VM détectée. Saisie manuelle possible.';
+  } catch (err) {
+    hypervJobGuests = [];
+    select.innerHTML = '<option value="">Saisie manuelle</option>';
+    status.textContent = `Inventaire indisponible : ${err.message}`;
+  }
 }
 
 function openNewStorageModal() {
@@ -977,6 +1233,24 @@ async function onHypervisorTypeChange() {
   const tipText = document.getElementById('jobHypervisorTipText');
   const vmIdInput = document.getElementById('jobVmId');
   const vmNameInput = document.getElementById('jobVmName');
+  document.getElementById('jobHypervInventoryField')?.classList.toggle('hidden', type !== 'HYPERV');
+  document.getElementById('jobCompressionField')?.classList.toggle('hidden', ['DATABASE', 'FOLDER', 'EMAIL_IMAP'].includes(type));
+
+  if (type === 'DATABASE' || type === 'FOLDER') {
+    vmFields?.classList.add('hidden');
+    mailFields?.classList.add('hidden');
+    document.getElementById('genericSourceFields')?.classList.remove('hidden');
+    const select = document.getElementById('jobGenericSourceSelect');
+    try {
+      const { sources } = await apiCall('/api/sources');
+      if (document.getElementById('jobHypervisorType').value !== type) return;
+      const options = sources.filter(source => (type === 'DATABASE') === ['MYSQL', 'POSTGRES', 'MSSQL'].includes(source.type));
+      select.innerHTML = options.length ? options.map(source => `<option value="${escapeHtml(source.id)}" data-name="${escapeHtml(source.name)}">${escapeHtml(source.name)} (${escapeHtml(source.type)})</option>`).join('')
+        : '<option value="">Aucune source compatible : ajoutez-en une dans Bases & Dossiers</option>';
+    } catch (err) { select.innerHTML = `<option value="">${escapeHtml(err.message)}</option>`; }
+    return;
+  }
+  document.getElementById('genericSourceFields')?.classList.add('hidden');
 
   if (type === 'EMAIL_IMAP') {
     vmFields?.classList.add('hidden');
@@ -1005,9 +1279,10 @@ async function onHypervisorTypeChange() {
     mailFields?.classList.add('hidden');
 
     if (type === 'HYPERV') {
-      if (tipText) tipText.innerHTML = '💡 <strong>Microsoft Hyper-V :</strong> Renseignez le nom exact de la VM (ou son GUID). La sauvegarde capture les disques <code>.vhdx</code> à chaud via VSS Snapshot.';
+      if (tipText) tipText.innerHTML = '💡 <strong>Microsoft Hyper-V :</strong> Sélectionnez une VM détectée ou renseignez son GUID et son nom. La sauvegarde capture les disques <code>.vhdx</code> à chaud via VSS Snapshot.';
       if (vmIdInput) vmIdInput.placeholder = 'ex: SRV-APP01 ou Nom de la VM';
       if (vmNameInput) vmNameInput.placeholder = 'ex: SRV-APP01';
+      await loadHypervJobInventory();
     } else {
       if (tipText) tipText.innerHTML = '💡 <strong>Proxmox VE :</strong> L\'ID est le numéro numérique de la VM ou du CT (ex: <code>100</code>). Sauvegarde via <code>vzdump</code> snapshot.';
       if (vmIdInput) vmIdInput.placeholder = 'ex: 100';
@@ -1070,8 +1345,15 @@ async function handleCreateJob(e) {
 
   let vmId = '';
   let vmName = '';
+  let nodeId = null;
 
-  if (type === 'EMAIL_IMAP') {
+  if (type === 'DATABASE' || type === 'FOLDER') {
+    const select = document.getElementById('jobGenericSourceSelect');
+    const option = select?.options[select.selectedIndex];
+    if (!option?.value) { alert('Ajoutez et sélectionnez une source dans Bases & Dossiers.'); return; }
+    vmId = option.value;
+    vmName = option.getAttribute('data-name') || option.text;
+  } else if (type === 'EMAIL_IMAP') {
     const select = document.getElementById('jobMailSourceSelect');
     const selectedOption = select?.options[select.selectedIndex];
     if (!selectedOption || !selectedOption.value) {
@@ -1087,6 +1369,15 @@ async function handleCreateJob(e) {
       alert('Veuillez renseigner l\'ID et le nom de la VM / Conteneur.');
       return;
     }
+    if (type === 'HYPERV') {
+      const selected = document.getElementById('jobHypervGuestSelect')?.value;
+      const guest = selected === '' ? null : hypervJobGuests[Number(selected)];
+      if (guest) {
+        vmId = guest.id;
+        vmName = guest.name;
+        nodeId = guest.nodeId;
+      }
+    }
   }
 
   const payload = {
@@ -1095,8 +1386,9 @@ async function handleCreateJob(e) {
     storage_target_id: storageTargetId,
     vm_id: vmId,
     vm_name: vmName,
+    node_id: nodeId,
     schedule_cron: scheduleCron,
-    compression: type === 'EMAIL_IMAP' ? 'gzip' : compression
+    compression: ['EMAIL_IMAP', 'DATABASE', 'FOLDER'].includes(type) ? 'gzip' : compression
   };
 
   try {
