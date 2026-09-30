@@ -221,7 +221,11 @@ export async function runSourceBackup(jobId: string): Promise<any> {
       db.prepare("UPDATE backup_jobs SET last_run_status = 'SUCCESS', last_run_at = CURRENT_TIMESTAMP WHERE id = ?").run(job.id);
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
-    await enforceRetention(job.id);
+    try {
+      await enforceRetention(job.id);
+    } catch (retentionError: any) {
+      logActivity('WARNING', 'Sources', `Rétention différée pour ${source.name} : ${retentionError.message}`);
+    }
     logActivity('SUCCESS', 'Sources', `Sauvegarde ${source.type} terminée : ${source.name}`);
     return { success: true, restorePointId: pointId, bytesWritten: size };
   } catch (error: any) {
