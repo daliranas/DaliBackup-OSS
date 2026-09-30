@@ -21,24 +21,38 @@ import { getStorageProvider } from '../storage/storageFactory';
  */
 export async function enforceRetention(jobId: string): Promise<{ prunedCount: number }> {
   try {
-    const job = db.prepare('SELECT id, name, retention_count, storage_target_id FROM backup_jobs WHERE id = ?').get(jobId) as any;
+    const job = db.prepare('SELECT id, name, hypervisor_type, retention_count, storage_target_id FROM backup_jobs WHERE id = ?').get(jobId) as any;
     if (!job) return { prunedCount: 0 };
 
     const retentionLimit = Number(job.retention_count) || 7;
 
     // Récupérer tous les points de restauration complétés, du plus récent au plus ancien
     const points = db.prepare(`
-      SELECT id, file_path, storage_target_id, created_at 
+      SELECT id, file_path, storage_target_id, created_at, vm_metadata
       FROM restore_points 
       WHERE job_id = ? AND status = 'COMPLETED'
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC, rowid DESC
     `).all(jobId) as any[];
 
     if (points.length <= retentionLimit) {
       return { prunedCount: 0 };
     }
 
-    const pointsToPrune = points.slice(retentionLimit);
+    // Un incrément de dossier nécessite tous ses ancêtres jusqu'à la base complète.
+    const keep = new Set(points.slice(0, retentionLimit).map(point => point.id));
+    if (job.hypervisor_type === 'FOLDER') {
+      const byId = new Map(points.map(point => [point.id, point]));
+      for (const id of [...keep]) {
+        let cursor = byId.get(id);
+        while (cursor) {
+          const previousId = JSON.parse(cursor.vm_metadata || '{}').previous_point_id;
+          if (!previousId || keep.has(previousId)) break;
+          keep.add(previousId);
+          cursor = byId.get(previousId);
+        }
+      }
+    }
+    const pointsToPrune = points.filter(point => !keep.has(point.id));
     let prunedCount = 0;
     const targetsCache = new Map<string, any>();
 

@@ -37,15 +37,33 @@ async function registerLocalHyperV(): Promise<LocalHyperVDiscoveryResult> {
   }
 
   const existing = db.prepare("SELECT id FROM hypervisor_nodes WHERE host = ? AND type = 'HYPERV'").get(local.hostname) as any;
+  let nodeId: string;
   if (existing) {
+    nodeId = existing.id;
     db.prepare("UPDATE hypervisor_nodes SET status = 'ONLINE', last_seen = CURRENT_TIMESTAMP WHERE id = ?").run(existing.id);
   } else {
-    const id = `hv-local-${crypto.createHash('sha256').update(local.hostname).digest('hex').slice(0, 12)}`;
+    nodeId = `hv-local-${crypto.createHash('sha256').update(local.hostname).digest('hex').slice(0, 12)}`;
     db.prepare(`
       INSERT INTO hypervisor_nodes (id, name, type, host, port, status, last_seen)
       VALUES (?, ?, 'HYPERV', ?, 0, 'ONLINE', CURRENT_TIMESTAMP)
-    `).run(id, `Hyper-V local (${local.hostname})`, local.hostname);
+    `).run(nodeId, `Hyper-V local (${local.hostname})`, local.hostname);
     logActivity('SUCCESS', 'HyperVLocal', `Hyper-V local détecté automatiquement sur '${local.hostname}' (${local.vms.length} VM(s)).`);
+  }
+  db.exec('BEGIN');
+  try {
+    const upsert = db.prepare(`INSERT INTO hyperv_guests (node_id, vm_id, name, state, last_seen)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(node_id, vm_id) DO UPDATE SET name = excluded.name, state = excluded.state, last_seen = CURRENT_TIMESTAMP`);
+    for (const vm of local.vms) upsert.run(nodeId, vm.id, vm.name, vm.state);
+    if (local.vms.length) {
+      db.prepare(`DELETE FROM hyperv_guests WHERE node_id = ? AND vm_id NOT IN (${local.vms.map(() => '?').join(',')})`).run(nodeId, ...local.vms.map(vm => vm.id));
+    } else {
+      db.prepare('DELETE FROM hyperv_guests WHERE node_id = ?').run(nodeId);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
   }
   return local;
 }
@@ -57,20 +75,45 @@ hypervisorRouter.get('/nodes', requireAuth, async (req: AuthenticatedRequest, re
   const enrichedNodes = nodes.map(node => ({
     ...node,
     local: localHyperV.available && node.type === 'HYPERV' && node.host === localHyperV.hostname,
-    vm_count: localHyperV.available && node.type === 'HYPERV' && node.host === localHyperV.hostname ? localHyperV.vms.length : undefined
+    vm_count: node.type === 'HYPERV' ? (db.prepare('SELECT COUNT(*) AS count FROM hyperv_guests WHERE node_id = ?').get(node.id) as any).count : undefined
   }));
   res.json({ nodes: enrichedNodes, localHyperV: { available: localHyperV.available, reason: localHyperV.reason } });
 });
 
-// VMs de l'hyperviseur local, sans agent distant.
+// Inventaire Hyper-V local ou dernier rapport reçu de l'agent distant.
 hypervisorRouter.get('/hyperv/:nodeId/guests', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const node = db.prepare("SELECT id, host, type FROM hypervisor_nodes WHERE id = ? AND type = 'HYPERV'").get(req.params.nodeId) as any;
-  const local = await registerLocalHyperV();
-  if (!node || !local.available || node.host !== local.hostname) {
-    res.status(404).json({ error: 'Cet hôte Hyper-V local est indisponible ou nécessite son agent DaliBackup.' });
+  await registerLocalHyperV();
+  const node = db.prepare("SELECT id, host, status, last_seen FROM hypervisor_nodes WHERE id = ? AND type = 'HYPERV'").get(req.params.nodeId) as any;
+  if (!node) {
+    res.status(404).json({ error: 'Hôte Hyper-V introuvable.' });
     return;
   }
-  res.json({ guests: local.vms });
+  const guests = db.prepare(`
+    SELECT g.vm_id AS id, g.name, g.state, g.last_seen,
+      (SELECT COUNT(*) FROM backup_jobs j WHERE j.hypervisor_type = 'HYPERV' AND j.vm_id = g.vm_id AND (j.node_id = g.node_id OR j.node_id IS NULL)) AS job_count,
+      (SELECT COUNT(*) FROM restore_points p WHERE p.hypervisor_type = 'HYPERV' AND p.vm_id = g.vm_id AND p.status = 'COMPLETED'
+        AND (p.job_id IS NULL OR EXISTS (SELECT 1 FROM backup_jobs j WHERE j.id = p.job_id AND (j.node_id = g.node_id OR j.node_id IS NULL)))) AS backup_count,
+      (SELECT MAX(p.created_at) FROM restore_points p WHERE p.hypervisor_type = 'HYPERV' AND p.vm_id = g.vm_id AND p.status = 'COMPLETED'
+        AND (p.job_id IS NULL OR EXISTS (SELECT 1 FROM backup_jobs j WHERE j.id = p.job_id AND (j.node_id = g.node_id OR j.node_id IS NULL)))) AS last_backup
+    FROM hyperv_guests g WHERE g.node_id = ? ORDER BY g.name COLLATE NOCASE
+  `).all(node.id);
+  res.json({ guests, node: { id: node.id, host: node.host, status: node.status, last_seen: node.last_seen } });
+});
+
+hypervisorRouter.get('/hyperv/:nodeId/guests/:vmId/backups', requireAuth, (req: AuthenticatedRequest, res: Response): void => {
+  const guest = db.prepare('SELECT name FROM hyperv_guests WHERE node_id = ? AND vm_id = ?').get(req.params.nodeId, req.params.vmId) as any;
+  if (!guest) {
+    res.status(404).json({ error: 'VM Hyper-V introuvable dans cet inventaire.' });
+    return;
+  }
+  const points = db.prepare(`
+    SELECT p.id, p.created_at, p.status, p.file_size_bytes, p.file_path, s.name AS storage_name
+    FROM restore_points p LEFT JOIN storage_targets s ON s.id = p.storage_target_id
+    WHERE p.hypervisor_type = 'HYPERV' AND p.vm_id = ?
+      AND (p.job_id IS NULL OR EXISTS (SELECT 1 FROM backup_jobs j WHERE j.id = p.job_id AND (j.node_id = ? OR j.node_id IS NULL)))
+    ORDER BY p.created_at DESC LIMIT 100
+  `).all(req.params.vmId, req.params.nodeId);
+  res.json({ vm_id: req.params.vmId, vm_name: guest.name, points });
 });
 
 // Ajouter un nœud Proxmox ou Hyper-V (secrets chiffrés au repos)
@@ -121,6 +164,13 @@ hypervisorRouter.post('/hyperv/report', requireAgentAuth, async (req: Authentica
   const { hostname, vms } = req.body;
   if (!hostname || !Array.isArray(vms)) {
     res.status(400).json({ error: 'Rapport agent invalide (hostname et vms requis).' });
+    return;
+  }
+  if (typeof hostname !== 'string' || hostname.length > 255 || vms.length > 10000 || vms.some(vm =>
+    !vm || typeof vm.id !== 'string' || !vm.id || vm.id.length > 128 ||
+    typeof vm.name !== 'string' || !vm.name || vm.name.length > 512 ||
+    typeof vm.state !== 'string' || vm.state.length > 64)) {
+    res.status(400).json({ error: 'Inventaire Hyper-V invalide.' });
     return;
   }
 

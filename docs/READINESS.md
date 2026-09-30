@@ -1,4 +1,4 @@
-# Operational readiness — 2026-09-29
+# Operational readiness — 2026-09-30
 
 This branch is under validation. It is not yet a certified production backup release.
 
@@ -17,6 +17,11 @@ This branch is under validation. It is not yet a certified production backup rel
 - Server HTTP/HTTPS startup test generates certificates without an external OpenSSL binary.
 - CI matrix covers Windows, Linux and macOS, Node 22 and 24; a configured matrix is not evidence
   that those remote jobs have run.
+- Hyper-V guest inventory and backup counts have API fixture tests, but need validation
+  against a real host and a deployed agent.
+- v1.1.3 folder-source full/incremental/restore-chain tests use a local mounted-folder
+  fixture. MySQL, PostgreSQL and MSSQL command pipelines use simulated vendor clients;
+  live servers and SQL restore are not yet certified.
 
 ## Hyper-V deployment path
 
@@ -46,6 +51,10 @@ temporary disk capacity. These PowerShell changes require validation on a Hyper-
 4. Test real FTP, FTPS, SFTP, SMB and S3 destinations, including connection loss, quota-full,
    permission denial, multi-GB transfers and restoration after server restart.
 5. Validate Windows service startup and SMB access under its actual service account.
+6. Test database dumps against disposable MySQL, PostgreSQL and SQL Server instances;
+   restore each to a clean database and verify schema and data.
+7. Test FTP/FTPS/SFTP source traversal, changed/deleted files, interruptions and
+   restoration of a multi-generation chain on real servers.
 
 ## Storage configuration
 

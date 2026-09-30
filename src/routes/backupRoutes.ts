@@ -76,6 +76,13 @@ backupRouter.post('/jobs', requireAuth, (req: AuthenticatedRequest, res: Respons
     res.status(400).json({ error: 'Nom, hyperviseur, VM et cible de stockage sont requis.' });
     return;
   }
+  if (hypervisor_type === 'DATABASE' || hypervisor_type === 'FOLDER') {
+    const source = db.prepare('SELECT id, type, name FROM backup_sources WHERE id = ?').get(vm_id) as any;
+    const isDatabase = source && ['MYSQL', 'POSTGRES', 'MSSQL'].includes(source.type);
+    if (!source || (hypervisor_type === 'DATABASE') !== isDatabase) {
+      res.status(400).json({ error: 'Source de sauvegarde introuvable ou type incompatible.' }); return;
+    }
+  }
 
   const id = `job-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
 
@@ -106,6 +113,7 @@ backupRouter.post('/jobs/:id/run', requireAuth, async (req: AuthenticatedRequest
 backupRouter.delete('/jobs/:id', requireAuth, (req: AuthenticatedRequest, res: Response): void => {
   const { id } = req.params;
   db.prepare('DELETE FROM backup_jobs WHERE id = ?').run(id);
+  db.prepare('DELETE FROM source_file_state WHERE job_id = ?').run(id);
   scheduler.refreshSchedules();
   logActivity('WARNING', 'BackupJobs', `Job supprimé : ${id}`);
   res.json({ success: true, message: 'Job supprimé.' });

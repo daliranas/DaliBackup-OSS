@@ -15,7 +15,7 @@ Authorization: Bearer <JWT_OR_AGENT_TOKEN>
 ## 2. API Endpoints Summary
 
 ### A. System & Health
-* `GET /api/health` : Control Plane healthcheck. Returns `{ "status": "HEALTHY", "version": "1.0.0-oss" }`.
+* `GET /api/health` : Control Plane healthcheck. Returns the installed OSS version.
 * `GET /api/auth/setup-status` : Check if the setup wizard has been completed.
 * `POST /api/auth/setup-complete` : Complete initial setup wizard and create the admin user.
 * `POST /api/auth/login` : Authenticate admin user and receive JWT.
@@ -28,10 +28,19 @@ Authorization: Bearer <JWT_OR_AGENT_TOKEN>
 
 ### C. Backup Jobs & Hypervisors
 * `GET /api/jobs` : List all backup jobs with schedules and last execution statuses.
-* `POST /api/jobs` : Create a new backup job (Hyper-V, Proxmox, or IMAP).
+* `POST /api/jobs` : Create a new backup job (Hyper-V, Proxmox, IMAP, database, or folder).
 * `POST /api/jobs/:id/run` : Trigger an immediate 1-click execution of a backup job.
 * `DELETE /api/jobs/:id` : Delete a backup job.
 * `POST /api/hypervisors/nodes` : Register a Hyper-V or Proxmox VE hypervisor node.
+* `GET /api/hypervisors/nodes` : List nodes and local Hyper-V VM counts.
+* `GET /api/hypervisors/hyperv/:nodeId/guests` : VM inventory with job and completed-backup counts.
+* `GET /api/hypervisors/hyperv/:nodeId/guests/:vmId/backups` : VM backup history.
+
+### C.1. Database and Folder Sources
+* `GET /api/sources` : List sources without credentials.
+* `POST /api/sources` : Create a MySQL, PostgreSQL, MSSQL, FTP, FTPS, SFTP or mounted-SMB source.
+* `POST /api/sources/:id/test` : Test source access or vendor client connectivity.
+* `DELETE /api/sources/:id` : Delete a source unused by jobs.
 
 ### D. Hyper-V Agent Streaming Endpoints
 * `GET /api/hypervisors/agent/tasks?hostname=HOSTNAME` : Claim pending tasks for the given host.
@@ -43,5 +52,7 @@ Authorization: Bearer <JWT_OR_AGENT_TOKEN>
 
 ### E. Restore Points Catalog
 * `GET /api/restore-points` : List all restore points with hypervisor metadata, size, SHA-256 and status.
+* `GET /api/restore-points/:id/download` : Download an archive with a valid user JWT.
+* `GET /api/restore-points/:id/chain` : Ordered full-plus-increment chain for a folder point.
 * `POST /api/restore-points/:id/restore` : Order an automated disaster recovery restore.
 * `DELETE /api/restore-points/:id` : Delete restore point catalog entry and purge physical disk archive.
