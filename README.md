@@ -236,18 +236,24 @@ upgrades; keep a matching application/database snapshot for rollback.
 
 ## 💻 Hyper-V Agent Deployment (Windows)
 
-DaliBackup-OSS provides dedicated PowerShell automation agents located in [`agents/hyperv/`](./agents/hyperv/) :
+DaliBackup-OSS publishes a self-contained `DaliBackup-HyperV-Agent-vX.Y.Z.exe`
+with every release. It embeds the supported worker; no directory of PowerShell
+files is required.
 
-### 1. Install as a Background Scheduled Task
+### 1. Install the single-file agent as a Background Scheduled Task
 On your Hyper-V Host (Windows Server 2016/2019/2022/2025 or Windows 10/11 Pro) :
 
 ```powershell
 # Run PowerShell as Administrator
-cd C:\DaliBackup\agents\hyperv
-.\Install-DaliBackupService.ps1 -ApiUrl "https://backup.yourdomain.com:3443" -ApiToken "YOUR_AGENT_TOKEN"
+cd C:\DaliBackup
+.\DaliBackup-HyperV-Agent-vX.Y.Z.exe -ServerUrl "https://backup.yourdomain.com:3443" -ApiToken "YOUR_AGENT_TOKEN"
 ```
 
-### 2. Standalone Interactive Daemon Mode
+This registers and starts `DaliBackup-HyperV-Daemon`; its executable is reused
+at each Windows startup. Use `-Action uninstall` from the same executable to
+remove it.
+
+### 2. Source mode (for audit or customization)
 ```powershell
 .\DaliAgent-HyperV.ps1 -ServerUrl "https://backup.yourdomain.com:3443" -ApiToken "YOUR_AGENT_TOKEN" -Action worker -PollIntervalSeconds 15
 ```

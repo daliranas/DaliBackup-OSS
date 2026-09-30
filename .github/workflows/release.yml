@@ -11,8 +11,28 @@ permissions:
   packages: write
 
 jobs:
+  build-hyperv-agent-exe:
+    name: Build self-contained Hyper-V agent executable
+    runs-on: windows-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🪟 Build single-file Hyper-V executable
+        shell: pwsh
+        run: |
+          ./agents/hyperv/Build-StandaloneExe.ps1 -OutputPath ./DaliBackup-HyperV-Agent.exe
+
+      - name: 📤 Upload Hyper-V executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: dalibackup-hyperv-exe
+          path: DaliBackup-HyperV-Agent.exe
+          if-no-files-found: error
+
   build-and-publish-release:
     name: Build & Package Release Assets
+    needs: build-hyperv-agent-exe
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repository
@@ -45,12 +65,19 @@ jobs:
       - name: 🧪 Execute Full Test Suite Verification
         run: npm test
 
+      - name: 📥 Download self-contained Hyper-V executable
+        uses: actions/download-artifact@v4
+        with:
+          name: dalibackup-hyperv-exe
+          path: release-assets/hyperv-exe
+
       - name: 📦 Package Distribution Assets & Compute Checksums
         run: |
           mkdir -p release-assets
           VERSION="${GITHUB_REF_NAME:-v1.0.0}"
 
-          # 1. Hyper-V Agent Zip Package
+          # 1. Single-file Hyper-V executable and optional source package.
+          mv release-assets/hyperv-exe/DaliBackup-HyperV-Agent.exe "release-assets/DaliBackup-HyperV-Agent-${VERSION}.exe"
           zip -j "release-assets/dalibackup-hyperv-agents-${VERSION}.zip" agents/hyperv/*.ps1 agents/hyperv/config.example.json agents/hyperv/README.md
 
           # 2. Proxmox Hook Tarball
