@@ -8,6 +8,9 @@ This release does not certify every backup target for production; see
 
 ### Added
 
+- A self-contained Windows `.exe` for the supported Hyper-V worker. It embeds
+  the agent, installs its scheduled task itself and is published with releases;
+  the PowerShell source package remains available for auditing and custom use.
 - S3-compatible storage using the AWS SDK: multipart upload, streaming download,
   paginated listing and deletion, with configurable endpoint and region.
 - SMB storage through an OS-mounted share or a Windows UNC path.

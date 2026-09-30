@@ -27,6 +27,25 @@ Agent client natif Windows PowerShell / C# haute performance pour l'exécution d
 
 ## 🚀 Installation sur l'Hôte Windows Hyper-V
 
+### Option recommandée : un seul `.exe`
+
+Téléchargez `DaliBackup-HyperV-Agent-vX.Y.Z.exe` depuis la release GitHub,
+copiez-le où vous le souhaitez (par exemple `C:\DaliBackup\`) puis ouvrez
+**PowerShell en Administrateur** :
+
+```powershell
+.\DaliBackup-HyperV-Agent-vX.Y.Z.exe -ServerUrl "https://backup.daliranas.fr" -ApiToken "dalibkp_..."
+```
+
+L'exécutable contient le worker, installe la tâche `DaliBackup-HyperV-Daemon`,
+la démarre immédiatement et ne requiert aucun `.ps1` à côté. Pour le retirer :
+
+```powershell
+.\DaliBackup-HyperV-Agent-vX.Y.Z.exe -Action uninstall
+```
+
+### Option script PowerShell
+
 Ouvrez une invite **PowerShell en tant qu'Administrateur** :
 
 ```powershell
@@ -34,11 +53,14 @@ Ouvrez une invite **PowerShell en tant qu'Administrateur** :
 git clone git@github.com:daliranas/CLIENTS-HV-BACKUP-S3.git C:\DaliBackup
 cd C:\DaliBackup
 
-# 2. Installer les prérequis (Zstandard compression engine)
-.\Install-Zstandard.ps1
+# 2. Installer et enregistrer le worker OSS
+.\DaliAgent-HyperV.ps1 -ServerUrl "https://backup.daliranas.fr" -ApiToken "dalibkp_..."
+```
 
-# 3. Installer et enregistrer le service Windows d'arrière-plan
-.\Install-DaliBackupService.ps1
+Pour générer l'exécutable localement sous Windows :
+
+```powershell
+.\Build-StandaloneExe.ps1
 ```
 
 ---
