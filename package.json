@@ -1,12 +1,12 @@
 {
   "name": "dalibackup-oss",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "description": "DaliBackup OSS - Lightweight Open Source Backup Solution for Proxmox & Hyper-V with NFS/SFTP/FTP Storage",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "ts-node tests/runTests.ts && ts-node tests/apiE2ETest.ts && ts-node tests/storageRegression.ts && ts-node tests/s3Regression.ts && ts-node tests/storageMigration.ts",
+    "test": "ts-node tests/runTests.ts && ts-node tests/apiE2ETest.ts && ts-node tests/storageRegression.ts && ts-node tests/s3Regression.ts && ts-node tests/storageMigration.ts && ts-node tests/updateService.ts",
     "test:unit": "ts-node tests/runTests.ts",
     "test:e2e": "ts-node tests/apiE2ETest.ts",
     "test:smoke": "npm run build && ts-node tests/serverSmoke.ts"

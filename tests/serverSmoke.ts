@@ -34,18 +34,26 @@ async function run() {
       if (child.exitCode !== null || Date.now() > deadline) throw new Error(`Server did not start: ${logs}`);
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    for (const secure of [false, true]) {
-      const body = await new Promise<string>((resolve, reject) => {
-        const request = (secure ? https : http).get({ hostname: '127.0.0.1',
-          port: secure ? tlsPort : port, path: '/api/health', rejectUnauthorized: false }, res => {
-          let body = ''; res.on('data', chunk => body += chunk); res.on('end', () => resolve(body));
-        });
-        request.on('error', reject);
-        request.setTimeout(5000, () => request.destroy(new Error('Health request timed out')));
+    const redirect = await new Promise<{ statusCode?: number; location?: string }>((resolve, reject) => {
+      const request = http.get({ hostname: '127.0.0.1', port, path: '/api/health' }, res => {
+        res.resume();
+        res.on('end', () => resolve({ statusCode: res.statusCode, location: res.headers.location }));
       });
-      assert.equal(JSON.parse(body).status, 'HEALTHY');
-    }
-    console.log('Compiled server smoke passed: HTTP and HTTPS health, certificate generation without external OpenSSL.');
+      request.on('error', reject);
+      request.setTimeout(5000, () => request.destroy(new Error('Redirect request timed out')));
+    });
+    assert.equal(redirect.statusCode, 308);
+    assert.equal(redirect.location, `https://127.0.0.1:${tlsPort}/api/health`);
+
+    const body = await new Promise<string>((resolve, reject) => {
+      const request = https.get({ hostname: '127.0.0.1', port: tlsPort, path: '/api/health', rejectUnauthorized: false }, res => {
+        let body = ''; res.on('data', chunk => body += chunk); res.on('end', () => resolve(body));
+      });
+      request.on('error', reject);
+      request.setTimeout(5000, () => request.destroy(new Error('HTTPS health request timed out')));
+    });
+    assert.equal(JSON.parse(body).status, 'HEALTHY');
+    console.log('Compiled server smoke passed: HTTPS health, HTTP-to-HTTPS redirect and certificate generation without external OpenSSL.');
   } finally {
     const exited = child.exitCode === null ? once(child, 'exit') : Promise.resolve();
     child.kill(); await exited;

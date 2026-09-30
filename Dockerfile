@@ -26,7 +26,7 @@ LABEL org.opencontainers.image.title="DaliBackup-OSS"
 LABEL org.opencontainers.image.description="Sovereign Backup & Disaster Recovery Engine for Microsoft Hyper-V, Proxmox VE and IMAP Mailboxes"
 LABEL org.opencontainers.image.url="https://daliranas.fr"
 LABEL org.opencontainers.image.source="https://github.com/daliranas/DaliBackup-OSS"
-LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.version="1.1.2"
 
 WORKDIR /app
 
@@ -59,7 +59,7 @@ ENV DEFAULT_LOCAL_STORAGE_PATH=/var/backups/dalibackup
 
 # Healthcheck probe (checks API status every 30s)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
+  CMD curl -k -f https://localhost:3443/api/health || exit 1
 
 # Start Server
 CMD ["node", "dist/server.js"]
