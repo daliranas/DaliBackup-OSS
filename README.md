@@ -207,7 +207,7 @@ services:
       - ./data:/app/data
       - ./backups:/var/backups/dalibackup
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-k", "-f", "https://localhost:3443/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -221,6 +221,23 @@ Open your browser at **`https://localhost:3443`** (or `http://localhost:3000`).
 ---
 
 ## 💻 Native Bare-Metal Installation
+
+### Windows : serveur en un seul `.exe`
+
+Téléchargez `DaliBackup-Server-v1.1.2-win-x64.exe` et `SHA256SUMS.txt` depuis
+la [release officielle](https://github.com/daliranas/DaliBackup-OSS/releases/tag/v1.1.2).
+Vérifiez l'empreinte SHA-256, placez l'exécutable dans un dossier dédié, puis
+lancez-le. L'interface est disponible sur `https://localhost:3443` ; le port
+HTTP 3000 redirige vers HTTPS. Node.js, `npm` et les fichiers `public/` ne sont
+pas nécessaires sur ce serveur Windows.
+
+Le dossier `data/` (base SQLite, certificats et stockage local par défaut) est
+créé à côté de l'exécutable et doit être conservé lors des mises à jour. Une
+configuration `.env` facultative peut être placée dans le même dossier. Le
+serveur s'exécute tant que sa fenêtre reste ouverte ; utilisez votre
+gestionnaire de service habituel pour un démarrage automatique.
+
+### Installation Node.js / Linux / macOS
 
 Install Node.js 22 or 24, download the release source/archive, then run:
 

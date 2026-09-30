@@ -18,6 +18,8 @@ import helmet from 'helmet';
 import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
+import { getAsset, isSea } from 'node:sea';
+import { version as PACKAGE_VERSION } from '../package.json';
 
 dotenv.config();
 
@@ -63,8 +65,34 @@ app.use((req: Request, res: Response, next) => {
   return res.redirect(308, `https://${host}${port}${req.originalUrl}`);
 });
 
-// Fichiers statiques UI
-app.use(express.static(path.join(__dirname, '../public')));
+// The Windows single-file executable embeds the UI in its Node SEA assets.
+// Source and Docker builds still serve the normal public directory.
+const publicDirectory = path.join(__dirname, '../public');
+const embeddedAssets: Record<string, { key: string; type: string }> = {
+  '/': { key: 'public/index.html', type: 'html' },
+  '/index.html': { key: 'public/index.html', type: 'html' },
+  '/app.js': { key: 'public/app.js', type: 'js' },
+  '/logo.svg': { key: 'public/logo.svg', type: 'svg' }
+};
+
+if (isSea()) {
+  app.use((req: Request, res: Response, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    const asset = embeddedAssets[req.path];
+    if (!asset) return next();
+    res.type(asset.type).send(Buffer.from(getAsset(asset.key)));
+  });
+} else {
+  app.use(express.static(publicDirectory));
+}
+
+function sendUiIndex(res: Response): void {
+  if (isSea()) {
+    res.type('html').send(Buffer.from(getAsset('public/index.html')));
+  } else {
+    res.sendFile(path.join(publicDirectory, 'index.html'));
+  }
+}
 
 import mailRouter from './routes/mailRoutes';
 
@@ -77,11 +105,7 @@ app.use('/api/hypervisors', hypervisorRouter);
 app.use('/api/mail', mailRouter);
 app.use('/api/updates', updateRouter);
 
-let APP_VERSION = '1.0.0-oss';
-try {
-  const pkg = require(path.join(__dirname, '../package.json'));
-  if (pkg?.version) APP_VERSION = `${pkg.version}-oss`;
-} catch {}
+const APP_VERSION = `${PACKAGE_VERSION}-oss`;
 
 // Health Check
 app.get('/api/health', (req: Request, res: Response) => {
@@ -103,12 +127,12 @@ app.get('/wizard', (req: Request, res: Response) => {
     return res.redirect('/?locked=wizard');
   }
 
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+  sendUiIndex(res);
 });
 
 // Fallback SPA
 app.get('/{*path}', (req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+  sendUiIndex(res);
 });
 
 // Initialiser le planificateur de tâches
