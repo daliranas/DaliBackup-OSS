@@ -20,8 +20,10 @@ This branch is under validation. It is not yet a certified production backup rel
 
 ## Hyper-V deployment path
 
-Use `agents/hyperv/DaliAgent-HyperV.ps1` with `-ServerUrl`, `-ApiToken` and `-Action worker`,
-or the corrected `Install-DaliBackupService.ps1` / `Install-WindowsService.ps1` installers.
+Use the release `DaliBackup-HyperV-Agent-vX.Y.Z.exe` with `-ServerUrl` and
+`-ApiToken`; it installs the scheduled task and embeds the worker. The source
+worker remains available as `agents/hyperv/DaliAgent-HyperV.ps1` for audit or
+customization.
 Trust the server TLS certificate on the Windows host before starting the service.
 The server runs on multiple operating systems; the Hyper-V agent requires Windows/Hyper-V.
 

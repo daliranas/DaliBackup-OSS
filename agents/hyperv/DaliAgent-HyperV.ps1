@@ -13,8 +13,8 @@
 param (
     [string]$ServerUrl = "https://localhost:3443",
     [string]$ApiToken = "dalibkp_oss_secure_token",
-    [ValidateSet("report", "worker")]
-    [string]$Action = "worker",
+    [ValidateSet("install", "uninstall", "report", "worker")]
+    [string]$Action = "install",
     [int]$PollIntervalSeconds = 15,
     [string]$RestoreBasePath = "C:\DaliBackup\Restores",
     [switch]$SkipSslCheck = $false
@@ -424,8 +424,63 @@ function Start-WorkerLoop {
     }
 }
 
-if ($Action -eq "report") {
-    Send-Report
-} elseif ($Action -eq "worker") {
-    Start-WorkerLoop
+function Test-Administrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Get-AgentLaunchCommand {
+    # In a PS2EXE build, MainModule is the packaged agent.  In a normal
+    # PowerShell session it is powershell.exe/pwsh.exe, so keep the .ps1 path.
+    $mainModulePath = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    if ([IO.Path]::GetExtension($mainModulePath) -ieq ".exe" -and
+        [IO.Path]::GetFileName($mainModulePath) -like "DaliBackup-HyperV-Agent*") {
+        return @{ Execute = $mainModulePath; ArgumentsPrefix = ""; WorkingDirectory = (Split-Path -Parent $mainModulePath) }
+    }
+
+    return @{ Execute = (Get-Process -Id $PID).Path; ArgumentsPrefix = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""; WorkingDirectory = $PSScriptRoot }
+}
+
+function Install-AgentService {
+    if (-not (Test-Administrator)) {
+        throw "L'installation doit être lancée en tant qu'Administrateur."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ApiToken) -or $ApiToken -eq "dalibkp_oss_secure_token") {
+        $ApiToken = Read-Host "Entrez le Token Machine API DaliBackup"
+    }
+    if ([string]::IsNullOrWhiteSpace($ApiToken)) {
+        throw "Le Token API est obligatoire."
+    }
+
+    $taskName = "DaliBackup-HyperV-Daemon"
+    $launch = Get-AgentLaunchCommand
+    $workerArguments = "$($launch.ArgumentsPrefix) -Action worker -ServerUrl `"$ServerUrl`" -ApiToken `"$ApiToken`" -PollIntervalSeconds $PollIntervalSeconds -RestoreBasePath `"$RestoreBasePath`""
+    if ($SkipSslCheck) { $workerArguments += " -SkipSslCheck" }
+
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+    $taskAction = New-ScheduledTaskAction -Execute $launch.Execute -Argument $workerArguments -WorkingDirectory $launch.WorkingDirectory
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Days 365) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
+    Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $trigger -Principal $principal -Settings $settings -Description "Service de sauvegarde continu DaliBackup Hyper-V" | Out-Null
+    Start-ScheduledTask -TaskName $taskName
+    Write-Host "[DaliBackup] Agent installé et démarré. Il redémarrera automatiquement avec Windows." -ForegroundColor Green
+}
+
+function Uninstall-AgentService {
+    if (-not (Test-Administrator)) {
+        throw "La désinstallation doit être lancée en tant qu'Administrateur."
+    }
+
+    Unregister-ScheduledTask -TaskName "DaliBackup-HyperV-Daemon" -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+    Write-Host "[DaliBackup] Agent désinstallé." -ForegroundColor Green
+}
+
+switch ($Action) {
+    "install" { Install-AgentService }
+    "uninstall" { Uninstall-AgentService }
+    "report" { Send-Report }
+    "worker" { Start-WorkerLoop }
 }
