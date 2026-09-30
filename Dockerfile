@@ -26,7 +26,7 @@ LABEL org.opencontainers.image.title="DaliBackup-OSS"
 LABEL org.opencontainers.image.description="Sovereign Backup & Disaster Recovery Engine for Microsoft Hyper-V, Proxmox VE and IMAP Mailboxes"
 LABEL org.opencontainers.image.url="https://daliranas.fr"
 LABEL org.opencontainers.image.source="https://github.com/daliranas/DaliBackup-OSS"
-LABEL org.opencontainers.image.version="1.1.2"
+LABEL org.opencontainers.image.version="1.1.3"
 
 WORKDIR /app
 
@@ -41,6 +41,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 COPY public ./public
 COPY agents ./agents
+COPY scripts ./scripts
 COPY LICENSE NOTICE README.md ./
 
 # Create persistent storage directories

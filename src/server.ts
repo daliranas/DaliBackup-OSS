@@ -30,6 +30,7 @@ import { backupRouter } from './routes/backupRoutes';
 import { restoreRouter } from './routes/restoreRoutes';
 import { storageRouter } from './routes/storageRoutes';
 import { hypervisorRouter } from './routes/hypervisorRoutes';
+import { sourceRouter } from './routes/sourceRoutes';
 import { scheduler } from './scheduler/backupScheduler';
 import { updateRouter } from './routes/updateRoutes';
 
@@ -102,6 +103,7 @@ app.use('/api', backupRouter);
 app.use('/api/restore-points', restoreRouter);
 app.use('/api/storage-targets', storageRouter);
 app.use('/api/hypervisors', hypervisorRouter);
+app.use('/api/sources', sourceRouter);
 app.use('/api/mail', mailRouter);
 app.use('/api/updates', updateRouter);
 

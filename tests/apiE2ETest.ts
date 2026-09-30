@@ -34,6 +34,7 @@ import { backupRouter } from '../src/routes/backupRoutes';
 import { restoreRouter } from '../src/routes/restoreRoutes';
 import { storageRouter } from '../src/routes/storageRoutes';
 import { hypervisorRouter } from '../src/routes/hypervisorRoutes';
+import { sourceRouter } from '../src/routes/sourceRoutes';
 import mailRouter from '../src/routes/mailRoutes';
 
 // Initialisation de la DB
@@ -51,6 +52,7 @@ app.use('/api', backupRouter);
 app.use('/api/restore-points', restoreRouter);
 app.use('/api/storage-targets', storageRouter);
 app.use('/api/hypervisors', hypervisorRouter);
+app.use('/api/sources', sourceRouter);
 app.use('/api/mail', mailRouter);
 
 app.get('/api/health', (req, res) => {
@@ -181,6 +183,18 @@ async function runApiE2ETests() {
   assert.strictEqual(nodeRes.status, 200);
   const nodeId = nodeRes.body.id;
   console.log('   ✅ POST /api/hypervisors/nodes : 200 OK (Nœud enregistré avec secrets chiffrés)');
+
+  const sourceCreate = await request(app).post('/api/sources').set('Authorization', `Bearer ${adminToken}`)
+    .send({ name: 'Test files', type: 'SMB', source_path: testStorageDir });
+  assert.strictEqual(sourceCreate.status, 200);
+  const sourceList = await request(app).get('/api/sources').set('Authorization', `Bearer ${adminToken}`);
+  assert.strictEqual(sourceList.status, 200);
+  assert.strictEqual(sourceList.body.sources[0].name, 'Test files');
+  assert.strictEqual(sourceList.body.sources[0].password_encrypted, undefined);
+  const sourceTest = await request(app).post(`/api/sources/${sourceCreate.body.id}/test`).set('Authorization', `Bearer ${adminToken}`);
+  assert.strictEqual(sourceTest.status, 200);
+  const sourceAnonymous = await request(app).get('/api/sources');
+  assert.strictEqual(sourceAnonymous.status, 401);
 
   const reportRes = await request(app)
     .post('/api/hypervisors/hyperv/report')

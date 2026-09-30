@@ -4,7 +4,7 @@
 > In particular, incremental Hyper-V RCT is not yet wired into the OSS worker end to end.
 
 # 🛡️ DaliBackup-OSS
-### Sovereign, Lightweight Backup, Replication & Disaster Recovery Engine for Microsoft Hyper-V, Proxmox VE & IMAP
+### Sovereign Backup Engine for Hyper-V, Proxmox VE, IMAP, Databases & Remote Folders
 
 [![Release](https://img.shields.io/github/v/release/daliranas/DaliBackup-OSS?style=for-the-badge)](https://github.com/daliranas/DaliBackup-OSS/releases)
 [![CI/CD Pipeline](https://img.shields.io/github/actions/workflow/status/daliranas/DaliBackup-OSS/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI%2FCD)](https://github.com/daliranas/DaliBackup-OSS/actions)
@@ -17,7 +17,7 @@
 <br/>
 
 **DaliBackup-OSS** is a free, self-hosted, lightweight, and sovereign open-source backup and disaster recovery platform.  
-For **Sysadmins, MSPs, DevOps, and Homelabers**, it provides backup workflows for **Microsoft Hyper-V**, **Proxmox VE (QEMU/KVM & LXC)** and **IMAP**, with **local/NFS, mounted SMB, SFTP, FTP/FTPS and S3-compatible storage**. Real-hypervisor recovery and provider acceptance tests remain required before production use.
+For **Sysadmins, MSPs, DevOps, and Homelabers**, it provides backup workflows for **Microsoft Hyper-V**, **Proxmox VE (QEMU/KVM & LXC)**, **IMAP**, **MySQL/PostgreSQL/MSSQL** and **remote folders**, with **local/NFS, mounted SMB, SFTP, FTP/FTPS and S3-compatible storage**. Real-system backup and restore acceptance tests remain required before production use.
 
 [🌐 Live Documentation](https://daliranas.github.io/DaliBackup-OSS/) · [🐳 Docker Hub](https://hub.docker.com/r/blanguedoc/dalibackup-oss) · [🤝 Contributing](./CONTRIBUTING.md) · [🐛 Report Bug](https://github.com/daliranas/DaliBackup-OSS/issues) · [💡 Request Feature](https://github.com/daliranas/DaliBackup-OSS/issues) · [🏢 Official Website](https://daliranas.fr)
 
@@ -50,7 +50,7 @@ For **Sysadmins, MSPs, DevOps, and Homelabers**, it provides backup workflows fo
 See the [changelog and upgrade instructions](CHANGELOG.md) and
 [readiness report](docs/READINESS.md). This upgrade focuses on storage reliability,
 S3, mounted SMB, explicit FTPS, safe restoration, cross-platform startup, and
-the v1.1.2 SSL, update-check and Hyper-V discovery patches.
+the v1.1.3 Hyper-V inventory and database/folder source additions.
 
 - CI tests the server on Windows, Linux and macOS with Node.js 22/24.
 - Docker, VM and bare-metal installation paths are available. LXC deployments
@@ -58,8 +58,13 @@ the v1.1.2 SSL, update-check and Hyper-V discovery patches.
   deployment acceptance tests are not delivered in this release.
 - Hyper-V OSS backups are full gzip-compressed disks. End-to-end RCT incremental
   backup and full-plus-delta restoration to a selected date are **not implemented**.
-- MariaDB, PostgreSQL, SQLite, MSSQL and MongoDB application backup connectors are
-  **not implemented**; embedded SQLite is the server's catalog, not a backup connector.
+- MySQL, PostgreSQL and MSSQL sources produce full dumps; database log/WAL/binlog
+  incremental backups are not implemented. MariaDB, SQLite and MongoDB connectors
+  are not certified. Embedded SQLite remains the server's catalog.
+- Folder sources use FTP, FTPS, SFTP or an OS-mounted SMB share/UNC. Incremental
+  selection uses file size and modification time (or copies all files when the
+  remote server supplies no usable timestamp). A chain starts with a full archive;
+  retain every archive in the chain to restore a later point.
 - Mandatory compression across every backup path is not yet guaranteed.
 - Large remote transfers, real Hyper-V recovery and Windows service deployment
   still need acceptance testing; CI is not proof of production recoverability.
@@ -75,6 +80,29 @@ For S3, set `remote_path` to `bucket/prefix`, `host` to an optional custom endpo
 for OVHcloud or Cloudflare R2. Bastivan Consulting's requested endpoint is
 `https://fr-mar1-s3.bastivan.consulting`. Individual cloud providers are not certified
 by this release: test write/read/list/delete and restoration with your credentials.
+
+### Database and folder sources (v1.1.3)
+
+In **Bases & Dossiers**, register a source and then create a **Database** or
+**Folder** job with a storage target. MySQL requires `mysqldump`, PostgreSQL
+requires `pg_dump`, and SQL Server requires `sqlcmd` installed on the DaliBackup
+host (including when using the Windows server `.exe`). These external vendor
+tools are not embedded in the executable. MySQL and PostgreSQL dumps are
+compressed `.sql.gz`; SQL Server uses `BACKUP DATABASE ... WITH COMPRESSION,
+CHECKSUM` and needs a backup directory writable by SQL Server and readable by
+DaliBackup. For a remote SQL Server, map the server-side backup path and the
+locally accessible SMB path to the same directory. SQL backup permissions and
+an isolated test restore are required before production use.
+
+Folder sources read recursively and create `.tar.gz` archives. SMB uses the
+identity and mount/UNC permissions of the DaliBackup process; the application
+does not mount a share or negotiate separate SMB credentials. FTP is unencrypted;
+prefer FTPS or SFTP over untrusted networks. Incremental archives contain
+changed files and a manifest of deletions. Download the complete chain from
+the restore-point view and reconstruct it with
+`node scripts/restore-folder-chain.mjs <empty-output-dir> <full.tar.gz> <increment-1.tar.gz> ...`
+in chronological order. The script refuses a non-empty destination. See
+[source backup and restore details](docs/08-database-folder-backups.md).
 
 ## 💡 Why DaliBackup-OSS?
 
@@ -224,8 +252,8 @@ Open your browser at **`https://localhost:3443`** (or `http://localhost:3000`).
 
 ### Windows : serveur en un seul `.exe`
 
-Téléchargez `DaliBackup-Server-v1.1.2-win-x64.exe` et `SHA256SUMS.txt` depuis
-la [release officielle](https://github.com/daliranas/DaliBackup-OSS/releases/tag/v1.1.2).
+Téléchargez `DaliBackup-Server-v1.1.3-win-x64.exe` et `SHA256SUMS.txt` depuis
+la [release officielle](https://github.com/daliranas/DaliBackup-OSS/releases/tag/v1.1.3).
 Vérifiez l'empreinte SHA-256, placez l'exécutable dans un dossier dédié, puis
 lancez-le. L'interface est disponible sur `https://localhost:3443` ; le port
 HTTP 3000 redirige vers HTTPS. Node.js, `npm` et les fichiers `public/` ne sont

@@ -9,7 +9,7 @@ async function run(): Promise<void> {
 
   const originalFetch = globalThis.fetch;
   let requests = 0;
-  const tag = 'v1.1.3';
+  const tag = 'v1.1.4';
   const archive = `dalibackup-oss-server-${tag}.tar.gz`;
   try {
     globalThis.fetch = async () => {
@@ -24,8 +24,8 @@ async function run(): Promise<void> {
       }), { status: 200, headers: { 'content-type': 'application/json' } });
     };
     const status = await getUpdateStatus(true);
-    assert.equal(status.currentVersion, '1.1.2');
-    assert.equal(status.latestVersion, '1.1.3');
+    assert.equal(status.currentVersion, '1.1.3');
+    assert.equal(status.latestVersion, '1.1.4');
     assert.equal(status.updateAvailable, true);
     assert.ok(status.serverArchiveUrl?.endsWith(archive));
     assert.ok(status.checksumUrl?.endsWith('SHA256SUMS.txt'));

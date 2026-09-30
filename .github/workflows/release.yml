@@ -11,6 +11,28 @@ permissions:
   packages: write
 
 jobs:
+  build-server-exe:
+    name: Build self-contained Windows Web/API executable
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - run: npm run build:server-exe
+      - name: Smoke test standalone server
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          node tests/serverExeSmoke.cjs "release-assets/DaliBackup-Server-v${version}-win-x64.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dalibackup-server-exe
+          path: release-assets/DaliBackup-Server-*-win-x64.exe
+          if-no-files-found: error
+
   build-hyperv-agent-exe:
     name: Build self-contained Hyper-V agent executable
     runs-on: windows-latest
@@ -32,7 +54,7 @@ jobs:
 
   build-and-publish-release:
     name: Build & Package Release Assets
-    needs: build-hyperv-agent-exe
+    needs: [build-hyperv-agent-exe, build-server-exe]
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repository
@@ -71,6 +93,12 @@ jobs:
           name: dalibackup-hyperv-exe
           path: release-assets/hyperv-exe
 
+      - name: 📥 Download self-contained Windows Web/API executable
+        uses: actions/download-artifact@v4
+        with:
+          name: dalibackup-server-exe
+          path: release-assets/server-exe
+
       - name: 📦 Package Distribution Assets & Compute Checksums
         run: |
           mkdir -p release-assets
@@ -79,13 +107,15 @@ jobs:
           # 1. Single-file Hyper-V executable and optional source package.
           mv release-assets/hyperv-exe/DaliBackup-HyperV-Agent.exe "release-assets/DaliBackup-HyperV-Agent-${VERSION}.exe"
           rmdir release-assets/hyperv-exe
+          mv release-assets/server-exe/*.exe release-assets/
+          rmdir release-assets/server-exe
           zip -j "release-assets/dalibackup-hyperv-agents-${VERSION}.zip" agents/hyperv/*.ps1 agents/hyperv/config.example.json agents/hyperv/README.md
 
           # 2. Proxmox Hook Tarball
           tar -czvf "release-assets/dalibackup-proxmox-hooks-${VERSION}.tar.gz" -C agents/proxmox .
 
           # 3. Full Standalone Production Server Tarball
-          tar -czvf "release-assets/dalibackup-oss-server-${VERSION}.tar.gz" dist public agents package.json package-lock.json tsconfig.json docker-compose.yml Dockerfile .env.example LICENSE NOTICE README.md CHANGELOG.md docs
+          tar -czvf "release-assets/dalibackup-oss-server-${VERSION}.tar.gz" dist public agents scripts package.json package-lock.json tsconfig.json docker-compose.yml Dockerfile .env.example LICENSE NOTICE README.md CHANGELOG.md docs
 
           # 4. Generate SHA-256 Checksums
           cd release-assets

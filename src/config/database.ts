@@ -28,6 +28,15 @@ if (!fs.existsSync(dbDir)) {
 export const db = new DatabaseSync(dbPath);
 
 export function initDatabase(): void {
+  // Preserve a transactionally consistent copy before changing an existing schema.
+  // VACUUM INTO also includes committed WAL pages, unlike copying the .db file.
+  const legacyTables = db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'backup_sources'").get() as { count: number };
+  const sourceSchemaExists = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'backup_sources'").get();
+  const migrationSnapshot = `${dbPath}.pre-v1.1.3.bak`;
+  if (legacyTables.count > 0 && !sourceSchemaExists && !fs.existsSync(migrationSnapshot)) {
+    db.prepare('VACUUM INTO ?').run(migrationSnapshot);
+    fs.chmodSync(migrationSnapshot, 0o600);
+  }
   // 1. Table Paramètres Système & Setup Wizard
   db.exec(`
     CREATE TABLE IF NOT EXISTS system_settings (
@@ -148,6 +157,31 @@ export function initDatabase(): void {
       UNIQUE(job_id, mailbox_folder)
     );
     CREATE INDEX IF NOT EXISTS idx_mail_sync_job ON mail_sync_state (job_id);
+  `);
+
+  // Sources de données sauvegardées (distinctes des cibles de stockage).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS backup_sources (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('MYSQL','POSTGRES','MSSQL','FTP','FTPS','SFTP','SMB')),
+      host TEXT,
+      port INTEGER,
+      username TEXT,
+      password_encrypted TEXT,
+      private_key_encrypted TEXT,
+      database_name TEXT,
+      source_path TEXT,
+      server_backup_path TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS source_file_state (
+      job_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      modified_at INTEGER NOT NULL,
+      PRIMARY KEY (job_id, path)
+    );
   `);
 
   // 6. Table Jobs de Sauvegarde (Hyperviseurs & Boîtes Mail)

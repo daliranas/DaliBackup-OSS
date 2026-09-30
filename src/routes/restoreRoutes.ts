@@ -37,6 +37,23 @@ restoreRouter.get('/', requireAuth, (req: AuthenticatedRequest, res: Response): 
   res.json({ points });
 });
 
+restoreRouter.get('/:id/chain', requireAuth, (req: AuthenticatedRequest, res: Response): void => {
+  const chain: any[] = [];
+  let point = db.prepare("SELECT id, job_id, file_path, checksum_sha256, vm_metadata, status FROM restore_points WHERE id = ? AND hypervisor_type = 'FOLDER' AND status = 'COMPLETED'").get(req.params.id) as any;
+  if (!point) { res.status(404).json({ error: 'Point de dossier introuvable.' }); return; }
+  const seen = new Set<string>();
+  while (point && !seen.has(point.id) && chain.length < 1000) {
+    seen.add(point.id);
+    chain.unshift({ id: point.id, file_path: point.file_path, checksum_sha256: point.checksum_sha256 });
+    const metadata = JSON.parse(point.vm_metadata || '{}');
+    if (metadata.full) { res.json({ chain }); return; }
+    point = metadata.previous_point_id
+      ? db.prepare("SELECT id, job_id, file_path, checksum_sha256, vm_metadata, status FROM restore_points WHERE id = ? AND job_id = ? AND status = 'COMPLETED'").get(metadata.previous_point_id, point.job_id) as any
+      : null;
+  }
+  res.status(409).json({ error: 'Chaîne incrémentale incomplète.' });
+});
+
 // Téléchargement direct d'une archive de sauvegarde (particulièrement utile pour les emails .tar.gz)
 restoreRouter.get('/:id/download', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
@@ -79,6 +96,14 @@ restoreRouter.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res:
     res.status(404).json({ error: 'Point de restauration introuvable.' });
     return;
   }
+  if (point.hypervisor_type === 'FOLDER') {
+    const dependents = db.prepare("SELECT id, vm_metadata FROM restore_points WHERE job_id = ? AND status = 'COMPLETED' AND id != ?").all(point.job_id, id) as any[];
+    if (dependents.some(row => JSON.parse(row.vm_metadata || '{}').previous_point_id === id)) {
+      res.status(409).json({ error: 'Ce point est requis par une sauvegarde incrémentale. Supprimez les incréments dépendants d’abord.' }); return;
+    }
+  }
+  const wasLatestFolderPoint = point.hypervisor_type === 'FOLDER' &&
+    (db.prepare("SELECT id FROM restore_points WHERE job_id = ? AND status = 'COMPLETED' ORDER BY created_at DESC, rowid DESC LIMIT 1").get(point.job_id) as any)?.id === id;
 
   const target = db.prepare('SELECT * FROM storage_targets WHERE id = ?').get(point.storage_target_id) as any;
   if (!target) {
@@ -99,6 +124,7 @@ restoreRouter.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res:
 
   db.prepare('DELETE FROM restore_point_disks WHERE restore_point_id = ?').run(id);
   db.prepare('DELETE FROM restore_points WHERE id = ?').run(id);
+  if (wasLatestFolderPoint) db.prepare('DELETE FROM source_file_state WHERE job_id = ?').run(point.job_id);
   logActivity('WARNING', 'RestorePoints', `Point de restauration supprimé : ${id} (${point.vm_name})`);
 
   res.json({ success: true, message: 'Point de restauration et archive physique supprimés.' });
@@ -122,6 +148,9 @@ restoreRouter.post('/:id/restore', requireAuth, async (req: AuthenticatedRequest
       result = await proxmoxEngine.restoreGuest(point.id, { targetNode, targetStorage, newVmid });
     } else if (point.hypervisor_type === 'EMAIL_IMAP') {
       result = await imapEngine.restoreMailbox(point.id, { targetSourceId, folderPrefix });
+    } else if (point.hypervisor_type === 'DATABASE' || point.hypervisor_type === 'FOLDER') {
+      res.status(400).json({ error: 'Téléchargez l’archive (et sa chaîne pour les dossiers), puis restaurez-la sur la destination voulue.' });
+      return;
     } else {
       result = await hypervEngine.restoreHyperV(point.id, { targetVmName, targetHost });
     }
