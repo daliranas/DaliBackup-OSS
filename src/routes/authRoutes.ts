@@ -32,7 +32,7 @@ const loginLimiter = rateLimit({
 
 // Statut d'initialisation du Wizard
 authRouter.get('/setup-status', (req: Request, res: Response): void => {
-  const settings = db.prepare('SELECT is_setup_completed, server_url, ssl_enabled, ssl_mode, agent_token FROM system_settings WHERE id = 1').get() as any;
+  const settings = db.prepare('SELECT is_setup_completed, server_url, ssl_enabled, ssl_mode FROM system_settings WHERE id = 1').get() as any;
   const user = db.prepare('SELECT id, username FROM admin_user WHERE id = 1').get() as any;
 
   res.json({
@@ -40,7 +40,8 @@ authRouter.get('/setup-status', (req: Request, res: Response): void => {
     serverUrl: settings?.server_url || `${req.protocol}://${req.get('host')}`,
     sslEnabled: Boolean(settings?.ssl_enabled),
     sslMode: settings?.ssl_mode || 'SELF_SIGNED',
-    agentToken: settings?.agent_token || 'dalibkp_oss_secure_token'
+    // Sentinel Security: Removed agentToken from unauthenticated setup-status response
+    // to prevent leakage of credentials before setup is completed.
   });
 });
 
