@@ -10,3 +10,11 @@
 **Vulnerability:** In `hypervisorRoutes.ts` and `restoreRoutes.ts`, raw file paths from the database were being used directly in the `Content-Disposition` header without sanitization or extraction. This exposed internal storage directory structures to end users. Furthermore, since the filename values were not stripped of quotes, a maliciously crafted database entry could lead to HTTP header injection.
 **Learning:** Never trust data originating from databases implicitly when constructing HTTP response headers, particularly for file downloads. Raw paths should never be exposed in headers.
 **Prevention:** Always extract the basename using `path.basename()` before appending it to `Content-Disposition`. Additionally, rigorously strip any double quotes (`"`) from the resulting filename string to prevent malicious actors from breaking out of the header parameter context (`filename="..."`).
+## 2025-02-28 - [Agent Token Exposure via /setup-status endpoint]
+**Vulnerability:** The unauthenticated GET `/setup-status` endpoint in `authRoutes.ts` queried the database for `agent_token` and returned it in the JSON response payload.
+**Learning:** Returning secrets in status endpoints undermines the entire system's security. It's critical to review all endpoints that fetch configuration or status settings and ensure they strictly filter sensitive fields.
+**Prevention:** Do not expose sensitive authentication tokens (like `agent_token`) in unauthenticated setup or status API endpoints. Ensure SQL queries for these endpoints strictly select only non-sensitive configuration fields.
+## 2025-02-28 - [Vulnerable dependencies: basic-ftp & proxy-addr]
+**Vulnerability:** Found vulnerable dependencies (`basic-ftp` CVE with Quadratic-time CPU DoS & `proxy-addr` CVE with IP spoofing).
+**Learning:** Checking for out-of-date or vulnerable dependencies (`npm audit`) should be an ongoing security process. CI will fail if critical vulnerabilities exist.
+**Prevention:** Regularly run `npm audit` and keep core dependencies updated.
