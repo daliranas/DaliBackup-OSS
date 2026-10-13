@@ -10,3 +10,11 @@
 **Vulnerability:** In `hypervisorRoutes.ts` and `restoreRoutes.ts`, raw file paths from the database were being used directly in the `Content-Disposition` header without sanitization or extraction. This exposed internal storage directory structures to end users. Furthermore, since the filename values were not stripped of quotes, a maliciously crafted database entry could lead to HTTP header injection.
 **Learning:** Never trust data originating from databases implicitly when constructing HTTP response headers, particularly for file downloads. Raw paths should never be exposed in headers.
 **Prevention:** Always extract the basename using `path.basename()` before appending it to `Content-Disposition`. Additionally, rigorously strip any double quotes (`"`) from the resulting filename string to prevent malicious actors from breaking out of the header parameter context (`filename="..."`).
+## 2026-10-13 - [Unauthenticated Token Disclosure in Setup Status]
+**Vulnerability:** The `/setup-status` endpoint in `src/routes/authRoutes.ts` was unauthenticated and queried the `agent_token` from `system_settings`, returning it in the JSON response. This allowed any unauthenticated user to retrieve the highly sensitive agent token which grants privileges across hypervisor and backup endpoints.
+**Learning:** Never query or return sensitive tokens or credentials in unauthenticated endpoints (like setup or status checks), even if they seem innocuous or are used by the frontend for setup processes.
+**Prevention:** Strictly limit the fields selected in SQL queries for public/unauthenticated endpoints to only the non-sensitive configuration values required. Do not include secret tokens in JSON responses unless the route is explicitly protected by strong authentication middleware.
+## 2026-10-13 - [Dependency Vulnerabilities in CI]
+**Vulnerability:** CI failed on PR submission due to `npm audit` finding vulnerabilities in dependencies (basic-ftp - High, proxy-addr - Critical).
+**Learning:** The project CI enforces a strict `npm audit --audit-level=high` check. Any high or critical vulnerabilities in the dependency tree will fail the build, even if all tests pass.
+**Prevention:** Always run `npm audit` and run `npm audit fix --force` locally if vulnerabilities are found before submitting PRs, to ensure the CI passes its security gates.
