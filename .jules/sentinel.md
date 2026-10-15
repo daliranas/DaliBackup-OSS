@@ -10,3 +10,11 @@
 **Vulnerability:** In `hypervisorRoutes.ts` and `restoreRoutes.ts`, raw file paths from the database were being used directly in the `Content-Disposition` header without sanitization or extraction. This exposed internal storage directory structures to end users. Furthermore, since the filename values were not stripped of quotes, a maliciously crafted database entry could lead to HTTP header injection.
 **Learning:** Never trust data originating from databases implicitly when constructing HTTP response headers, particularly for file downloads. Raw paths should never be exposed in headers.
 **Prevention:** Always extract the basename using `path.basename()` before appending it to `Content-Disposition`. Additionally, rigorously strip any double quotes (`"`) from the resulting filename string to prevent malicious actors from breaking out of the header parameter context (`filename="..."`).
+## 2025-02-28 - [Exposed Sensitive Data in Unauthenticated Endpoints]
+**Vulnerability:** The `/setup-status` endpoint in `authRoutes.ts` was returning the `agent_token` from the database. Because this endpoint is used by the frontend to check if the setup wizard has been completed and is not protected by authentication, anyone who queried it could extract the `agent_token`.
+**Learning:** Returning all config fields in unauthenticated startup or status endpoints often accidentally leaks secret keys meant only for internal/authenticated use.
+**Prevention:** Never expose sensitive authentication tokens (like `agent_token`) in unauthenticated API endpoints. Ensure SQL queries for unauthenticated endpoints strictly select only non-sensitive configuration fields.
+## 2026-10-15 - [Vulnerable dependencies updated]
+**Vulnerability:** Found `basic-ftp <= 6.2.0` which has a Quadratic-time CPU denial of service in `Client.list()` Unix directory-listing parser. Also found `proxy-addr` vulnerability.
+**Learning:** `npm audit` is a critical tool for checking dependencies against known vulnerability lists. When a CI fails because of an audit error, fixing the dependencies ensures that applications stay safe.
+**Prevention:** Regularly scan dependencies with `npm audit` and update vulnerable dependencies, while verifying that the version update doesn't cause regressions.
