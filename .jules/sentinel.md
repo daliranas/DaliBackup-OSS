@@ -14,3 +14,7 @@
 **Vulnerability:** The `/setup-status` endpoint in `authRoutes.ts`, which is unauthenticated, was exposing the `agent_token`. This token is used to authenticate Hyper-V agents.
 **Learning:** Do not expose sensitive authentication tokens in unauthenticated setup or status API endpoints.
 **Prevention:** Ensure SQL queries for setup status endpoints strictly select only non-sensitive configuration fields.
+## 2025-02-28 - [basic-ftp Dependency Vulnerability in CI]
+**Vulnerability:** The project CI enforces strict npm audits (`npm audit --audit-level=high`) and basic-ftp was flagged for a high severity vulnerability.
+**Learning:** CI failures may be triggered independently of our direct code modifications if dependency vulnerabilities surface. Fixing them using `npm audit fix --force` works but increments the package lock format/version and changes package.json.
+**Prevention:** Make sure to run `npm audit --audit-level=high` before pushing code and address warnings preemptively. Ensure that fixing vulnerabilities doesn't introduce massive unrelated package changes unless strictly required for CI passing.
