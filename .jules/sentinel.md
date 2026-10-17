@@ -10,3 +10,7 @@
 **Vulnerability:** In `hypervisorRoutes.ts` and `restoreRoutes.ts`, raw file paths from the database were being used directly in the `Content-Disposition` header without sanitization or extraction. This exposed internal storage directory structures to end users. Furthermore, since the filename values were not stripped of quotes, a maliciously crafted database entry could lead to HTTP header injection.
 **Learning:** Never trust data originating from databases implicitly when constructing HTTP response headers, particularly for file downloads. Raw paths should never be exposed in headers.
 **Prevention:** Always extract the basename using `path.basename()` before appending it to `Content-Disposition`. Additionally, rigorously strip any double quotes (`"`) from the resulting filename string to prevent malicious actors from breaking out of the header parameter context (`filename="..."`).
+## 2025-02-28 - [Agent Token Exposure on Unauthenticated Endpoint]
+**Vulnerability:** The `/setup-status` endpoint in `authRoutes.ts`, which is unauthenticated, was exposing the `agent_token`. This token is used to authenticate Hyper-V agents.
+**Learning:** Do not expose sensitive authentication tokens in unauthenticated setup or status API endpoints.
+**Prevention:** Ensure SQL queries for setup status endpoints strictly select only non-sensitive configuration fields.
