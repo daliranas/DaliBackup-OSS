@@ -10,3 +10,8 @@
 **Vulnerability:** In `hypervisorRoutes.ts` and `restoreRoutes.ts`, raw file paths from the database were being used directly in the `Content-Disposition` header without sanitization or extraction. This exposed internal storage directory structures to end users. Furthermore, since the filename values were not stripped of quotes, a maliciously crafted database entry could lead to HTTP header injection.
 **Learning:** Never trust data originating from databases implicitly when constructing HTTP response headers, particularly for file downloads. Raw paths should never be exposed in headers.
 **Prevention:** Always extract the basename using `path.basename()` before appending it to `Content-Disposition`. Additionally, rigorously strip any double quotes (`"`) from the resulting filename string to prevent malicious actors from breaking out of the header parameter context (`filename="..."`).
+
+## 2025-02-28 - [Agent Token Exposure in Unauthenticated Setup Endpoint]
+**Vulnerability:** The `/setup-status` endpoint in `authRoutes.ts` was returning the `agent_token` from the database in its JSON response. This endpoint is typically unauthenticated as it is used to determine if the initial setup wizard needs to be displayed, meaning any unauthenticated user could extract the sensitive `agent_token`.
+**Learning:** Do not expose sensitive configuration fields (like `agent_token`, `jwt_secret`, passwords) in unauthenticated endpoints or status APIs.
+**Prevention:** Always restrict SQL SELECT queries for status or setup endpoints to only retrieve non-sensitive fields (e.g., `is_setup_completed`, `server_url`, `ssl_enabled`).
