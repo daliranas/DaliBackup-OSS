@@ -92,7 +92,7 @@ async function checkSetupStatus() {
   try {
     const data = await safeFetchJson('/api/auth/setup-status');
     systemConfig.serverUrl = data.serverUrl || 'https://localhost:3443';
-    systemConfig.agentToken = data.agentToken || 'dalibkp_oss_secure_token';
+    systemConfig.agentToken = 'dalibkp_oss_secure_token';
     updateAgentSnippets();
     return !data.isSetupCompleted;
   } catch (err) {
